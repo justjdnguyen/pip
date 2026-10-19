@@ -7,6 +7,7 @@
 #![allow(dead_code)]
 
 pub mod annexb;
+pub mod core;
 #[cfg(windows)]
 pub mod win_decoder;
 #[cfg(windows)]
@@ -48,7 +49,8 @@ pub fn create_sink(window: &tauri::WebviewWindow) -> anyhow::Result<Box<dyn Vide
     Ok(Box::new(win_sink::WinSink::new(hwnd)?))
 }
 
-#[cfg(not(any(windows, target_os = "macos")))]
+// macOS: replaced by the AVSampleBufferDisplayLayer sink (branch macos-native-video).
+#[cfg(not(windows))]
 pub fn create_sink(_window: &tauri::WebviewWindow) -> anyhow::Result<Box<dyn VideoSink>> {
     anyhow::bail!("native video isn't supported on this platform")
 }

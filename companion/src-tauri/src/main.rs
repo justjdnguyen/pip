@@ -12,6 +12,9 @@
 
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+mod video;
+
+use base64::Engine;
 use serde_json::{json, Value};
 use std::collections::HashMap;
 use std::io::{Read, Write};
@@ -33,6 +36,9 @@ struct Sessions {
     id_of: HashMap<String, String>,
     /// A hidden, already-loaded window ready to be handed out.
     spare: Option<String>,
+    /// Windows whose video is drawn natively (see video/), by window label.
+    /// The rest decode in their page (the web path).
+    native: HashMap<String, video::core::NativeVideo>,
     next_window: u64,
 }
 
@@ -92,6 +98,66 @@ fn send(window: WebviewWindow, mut msg: Value, state: tauri::State<AppState>) {
     write_native(&msg);
 }
 
+/// How this window's page should show video: 'native' (the app draws it under
+/// the transparent page) or 'web' (the page decodes and draws it).
+#[tauri::command]
+fn video_mode(window: WebviewWindow, state: tauri::State<AppState>) -> &'static str {
+    if state.0.lock().unwrap().native.contains_key(window.label()) {
+        "native"
+    } else {
+        "web"
+    }
+}
+
+/// Native video events for one window.
+struct WindowEvents {
+    app: AppHandle,
+    label: String,
+}
+
+impl WindowEvents {
+    fn to_tab(&self, mut msg: Value) {
+        let id = self.app.state::<AppState>().0.lock().unwrap().id_of.get(&self.label).cloned();
+        if let Some(id) = id {
+            msg["id"] = json!(id);
+            write_native(&msg);
+        }
+    }
+}
+
+impl video::core::Events for WindowEvents {
+    fn keyframe(&self) {
+        self.to_tab(json!({ "type": "keyframe" }));
+    }
+    fn latency(&self, ms: u32) {
+        self.to_tab(json!({ "type": "latency", "ms": ms }));
+    }
+    fn first_frame(&self) {
+        deliver_to_label(&self.app, &self.label, json!({ "type": "first-frame" }));
+    }
+    fn failed(&self, message: String) {
+        // Fall back to decoding in the page from here on.
+        debug_log("native", &json!({ "label": self.label, "failed": message }));
+        self.app.state::<AppState>().0.lock().unwrap().native.remove(&self.label);
+        deliver_to_label(&self.app, &self.label, json!({ "type": "video-mode", "mode": "web", "reason": message }));
+    }
+}
+
+/// Start native video for a new window, if this platform can.
+fn start_native_video(app: &AppHandle, window: &WebviewWindow) {
+    if std::env::var_os("BP_WEB_VIDEO").is_some() {
+        return; // force the web path (for comparing)
+    }
+    match video::create_sink(window) {
+        Ok(sink) => {
+            let events = WindowEvents { app: app.clone(), label: window.label().to_owned() };
+            let native = video::core::NativeVideo::start(sink, Box::new(events));
+            app.state::<AppState>().0.lock().unwrap().native.insert(window.label().to_owned(), native);
+        }
+        Err(e) => debug_log("native", &json!({ "label": window.label(), "unavailable": format!("{e:#}") })),
+    }
+}
+
 /// Lock the window to the video's shape while the user resizes it.
 #[tauri::command]
 fn set_aspect(window: WebviewWindow, width: f64, height: f64) {
@@ -118,10 +184,17 @@ fn set_aspect_ratio(window: &WebviewWindow, width: f64, height: f64) {
     });
 }
 
-#[cfg(not(target_os = "macos"))]
-fn set_aspect_ratio(_window: &WebviewWindow, _width: f64, _height: f64) {
-    // TODO(windows): handle WM_SIZING to keep the aspect ratio while resizing.
+#[cfg(windows)]
+fn set_aspect_ratio(window: &WebviewWindow, width: f64, height: f64) {
+    if width > 0.0 && height > 0.0 {
+        if let Ok(hwnd) = window.hwnd() {
+            video::win_window::set_aspect(windows::Win32::Foundation::HWND(hwnd.0 as _), width, height);
+        }
+    }
 }
+
+#[cfg(not(any(target_os = "macos", windows)))]
+fn set_aspect_ratio(_window: &WebviewWindow, _width: f64, _height: f64) {}
 
 /// Let the window float over other apps' fullscreen Spaces too.
 #[cfg(target_os = "macos")]
@@ -160,7 +233,21 @@ fn show_without_focus(window: &WebviewWindow) {
     }
 }
 
-#[cfg(not(target_os = "macos"))]
+#[cfg(windows)]
+fn show_without_focus(window: &WebviewWindow) {
+    use windows::Win32::UI::WindowsAndMessaging::{ShowWindow, SW_SHOWNOACTIVATE};
+    match window.hwnd() {
+        // SAFETY: a live window handle, on the UI thread.
+        Ok(hwnd) => unsafe {
+            let _ = ShowWindow(windows::Win32::Foundation::HWND(hwnd.0 as _), SW_SHOWNOACTIVATE);
+        },
+        Err(_) => {
+            let _ = window.show();
+        }
+    }
+}
+
+#[cfg(not(any(target_os = "macos", windows)))]
 fn show_without_focus(window: &WebviewWindow) {
     let _ = window.show();
 }
@@ -173,7 +260,7 @@ fn create_window(app: &AppHandle) -> Option<WebviewWindow> {
         s.next_window += 1;
         format!("pip-{}", s.next_window)
     };
-    let window = WebviewWindowBuilder::new(app, &label, WebviewUrl::App("index.html".into()))
+    let builder = WebviewWindowBuilder::new(app, &label, WebviewUrl::App("index.html".into()))
         .title("Picture-in-Picture")
         .inner_size(480.0, 270.0)
         .min_inner_size(160.0, 90.0)
@@ -181,10 +268,17 @@ fn create_window(app: &AppHandle) -> Option<WebviewWindow> {
         .always_on_top(true)
         .visible_on_all_workspaces(true)
         .resizable(true)
-        .shadow(true)
-        // Black behind the video, so if the page lags a frame behind the
-        // window edge while resizing, the gap blends in instead of flashing white.
-        .background_color(tauri::window::Color(0, 0, 0, 255))
+        .shadow(true);
+    // Windows: a transparent web view with no redirection surface, so native
+    // video drawn under it (DirectComposition) shows through. The composition
+    // tree has its own black backdrop; in the web path the page paints black.
+    #[cfg(windows)]
+    let builder = builder.transparent(true).no_redirection_bitmap(true).skip_taskbar(true);
+    // Elsewhere: black behind the video, so if the page lags a frame behind the
+    // window edge while resizing, the gap blends in instead of flashing white.
+    #[cfg(not(windows))]
+    let builder = builder.background_color(tauri::window::Color(0, 0, 0, 255));
+    let window = builder
         .visible(false)
         .focused(false)
         .on_page_load(|webview, payload| {
@@ -197,6 +291,12 @@ fn create_window(app: &AppHandle) -> Option<WebviewWindow> {
         .build()
         .ok()?;
     float_over_fullscreen_apps(&window);
+    #[cfg(windows)]
+    if let Ok(hwnd) = window.hwnd() {
+        // Aspect-locked resizing, also in the web path.
+        video::win_window::install(windows::Win32::Foundation::HWND(hwnd.0 as _));
+    }
+    start_native_video(app, &window);
 
     let handle = app.clone();
     let closed_label = label.clone();
@@ -206,6 +306,7 @@ fn create_window(app: &AppHandle) -> Option<WebviewWindow> {
             let mut s = state.0.lock().unwrap();
             s.channels.remove(&closed_label);
             s.pending.remove(&closed_label);
+            s.native.remove(&closed_label);
             if s.spare.as_deref() == Some(closed_label.as_str()) {
                 s.spare = None;
             }
@@ -296,6 +397,30 @@ fn close_window(app: &AppHandle, id: &str) {
 fn deliver_to_label(app: &AppHandle, label: &str, msg: Value) {
     let state = app.state::<AppState>();
     let mut s = state.0.lock().unwrap();
+    // Native video: frames go to the window's video thread, not the page.
+    if let Some(native) = s.native.get(label) {
+        match msg["type"].as_str() {
+            Some("chunk") => {
+                let data = msg["data"].as_str().unwrap_or_default();
+                if let Ok(data) = base64::engine::general_purpose::STANDARD.decode(data) {
+                    native.send(video::core::Input::Chunk {
+                        data,
+                        key: msg["key"].as_bool().unwrap_or(false),
+                        ts_us: msg["ts"].as_i64().unwrap_or(0),
+                        cap: msg["cap"].as_f64().unwrap_or(0.0),
+                    });
+                }
+                return;
+            }
+            Some("config") => native.send(video::core::Input::Config(video::StreamConfig {
+                codec: msg["codec"].as_str().unwrap_or_default().to_owned(),
+                width: msg["width"].as_u64().unwrap_or(0) as u32,
+                height: msg["height"].as_u64().unwrap_or(0) as u32,
+            })),
+            // The page still gets 'config' (it sets the window's shape from it).
+            _ => {}
+        }
+    }
     if let Some(channel) = s.channels.get(label) {
         let _ = channel.send(msg);
     } else {
@@ -353,7 +478,7 @@ fn read_stdin(app: AppHandle) {
 fn main() {
     let app = tauri::Builder::default()
         .manage(AppState(Mutex::new(Sessions::default())))
-        .invoke_handler(tauri::generate_handler![attach, send, set_aspect])
+        .invoke_handler(tauri::generate_handler![attach, send, set_aspect, video_mode])
         .setup(|app| {
             // No Dock icon or menu bar: this app only ever shows PiP windows.
             #[cfg(target_os = "macos")]

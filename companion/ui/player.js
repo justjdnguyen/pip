@@ -1,9 +1,13 @@
 'use strict';
 
-// One PiP window in the companion app. Compressed video arrives from the tab
-// and goes to decoder-worker.js, which decodes it and feeds evenly paced frames
-// into a <video> element here. The controls (shared with the extension) send
-// commands back to the real video in the tab.
+// One PiP window in the companion app. The controls (shared with the
+// extension) send commands back to the real video in the tab.
+//
+// Video comes one of two ways (the app decides, see `video_mode`):
+// - 'native': the app decodes and draws it under this page, which is then
+//   transparent and only holds the controls (smooth resizing).
+// - 'web': compressed video arrives here and goes to decoder-worker.js, which
+//   decodes it and feeds evenly paced frames into a <video> element.
 
 const { invoke, Channel } = window.__TAURI__.core;
 const appWindow = window.__TAURI__.window.getCurrentWindow();
@@ -19,6 +23,8 @@ BP.adoptCss(
     `
   .stage video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; }
   .waiting { position: absolute; inset: 0; display: grid; place-items: center; color: #aaa; font-size: 13px; }
+  html.native, html.native body, html.native .stage { background: transparent !important; }
+  html.native .stage video { display: none !important; }
 `,
 );
 
@@ -193,17 +199,41 @@ function reportView() {
 }
 addEventListener('resize', reportView);
 
-// ---- decoding (in a worker) ----
-const worker = new Worker('decoder-worker.js');
-worker.onmessage = ({ data: msg }) => {
+// ---- video mode ----
+let videoMode = 'web';
+let lastConfig = null;
+
+function onFirstFrame() {
+  waiting.remove();
+  send({ type: 'first-frame' });
+}
+
+function setVideoMode(mode) {
+  videoMode = mode;
+  document.documentElement.classList.toggle('native', mode === 'native');
+  if (mode === 'web') {
+    startWorker();
+    if (lastConfig) worker.postMessage(lastConfig);
+  }
+}
+
+// ---- web path: decoding in a worker ----
+let worker = null;
+function startWorker() {
+  if (worker) return;
+  worker = new Worker('decoder-worker.js');
+  worker.onmessage = onWorkerMessage;
+  worker.onerror = (e) => send({ type: 'jserror', message: `worker: ${e.message}` });
+}
+
+function onWorkerMessage({ data: msg }) {
   switch (msg.type) {
     case 'track':
       videoEl.srcObject = new MediaStream([msg.track]);
       videoEl.play().catch(() => {});
       break;
     case 'first-frame':
-      waiting.remove();
-      send({ type: 'first-frame' });
+      onFirstFrame();
       break;
     case 'latency':
       send({ type: 'latency', ms: msg.ms });
@@ -218,10 +248,11 @@ worker.onmessage = ({ data: msg }) => {
       send({ type: 'jserror', message: msg.message });
       break;
   }
-};
-worker.onerror = (e) => send({ type: 'jserror', message: `worker: ${e.message}` });
+}
 
 async function supportedCodecs() {
+  // Native video is H.264 only.
+  if (videoMode === 'native') return ['avc'];
   const out = [];
   for (const [name, codec] of [['avc', 'avc1.640028'], ['vp8', 'vp8']]) {
     try {
@@ -241,11 +272,19 @@ function onMessage(msg) {
           await onAssigned();
           break;
         case 'chunk':
-          worker.postMessage(msg);
+          worker?.postMessage(msg);
           break;
         case 'config':
+          lastConfig = msg;
           setAspect(msg.width, msg.height);
-          worker.postMessage(msg);
+          worker?.postMessage(msg);
+          break;
+        case 'first-frame': // native video
+          onFirstFrame();
+          break;
+        case 'video-mode': // native video failed: decode here instead
+          send({ type: 'jserror', message: `native video off: ${msg.reason}` });
+          setVideoMode(msg.mode);
           break;
         case 'state':
           applyState(msg);
@@ -261,17 +300,16 @@ function onMessage(msg) {
   });
 }
 
-const codecsReady = supportedCodecs();
-
 async function onAssigned() {
   send({
     type: 'ready',
-    codecs: await codecsReady,
+    codecs: await supportedCodecs(),
     view: { width: innerWidth, height: innerHeight, dpr: devicePixelRatio || 1 },
   });
 }
 
 (async () => {
+  setVideoMode(await invoke('video_mode').catch(() => 'web'));
   const channel = new Channel();
   channel.onmessage = onMessage;
   await invoke('attach', { channel });

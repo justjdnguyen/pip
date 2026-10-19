@@ -1,4 +1,4 @@
-﻿// Test: Media Foundation H.264 decoding on the GPU (Windows).
+// Test: Media Foundation H.264 decoding on the GPU (Windows).
 //
 // Encodes a moving checkerboard with the Media Foundation H.264 encoder (so no
 // test files or ffmpeg are needed), then decodes it with `video::win_decoder`

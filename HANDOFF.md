@@ -102,6 +102,25 @@ Same structure on both platforms; only "decode" and "show" differ.
      texture array with `D3D11_BIND_DECODER`, luma matches within 2/255, and the visible size comes from the
      display aperture (854 inside an 864-wide texture, 1080 inside 1088). Frames hold a decoder surface while
      alive, so present and drop them promptly.
+   - **Show + app wiring done (2026-10-19, branch `windows-native-video`):** `video/win_sink.rs` (decoder →
+     `ID3D11VideoProcessor` NV12→BGRA with crop, BT.709 limited → full RGB → composition swap chain sized to the
+     picture, `Present(0)`), `video/win_window.rs` (subclass: `WM_SIZING` aspect lock for all PiP windows,
+     `WM_SIZE` DComp transform + `Commit`, black backdrop), `video/core.rs` (shared pacer, a port of
+     decoder-worker.js; unit-tested), `main.rs` (`video_mode` command, chunks/config routed to the window's video
+     thread, keyframe/latency to the tab, `first-frame` and `video-mode` fallback to the page; Windows windows are
+     `.transparent(true).no_redirection_bitmap(true).skip_taskbar(true)`, shown with `SW_SHOWNOACTIVATE`),
+     `ui/player.js` (asks `video_mode`; native = transparent page, reports `codecs: ['avc']`, no worker; switches
+     to the worker on `video-mode: web`). `BP_WEB_VIDEO=1` forces the web path.
+     `cargo run --bin native_video_spike` plays a generated clip through the real sink.
+     **Verified** in Helium + YouTube with `tools/startup-timing.mjs` (`BIN=%LOCALAPPDATA%\imput\Helium\Application\chrome.exe`):
+     first frame ~0.3 s after Alt+P, native path used, latency reports 55–61 ms; screenshot + scripted corner
+     drag of the real PiP window: correct picture, no gaps. Drags need the cursor ~2 px *outside* the visible
+     edge (invisible resize border).
+     **Not yet verified:** the web fallback on WebView2 (`BP_WEB_VIDEO=1` runs failed to start the test page —
+     environment flake while the PC was in use, not diagnosed), color accuracy vs the tab (BT.709 assumed),
+     multi-monitor/DPI changes, several PiPs at once, fullscreen.
+   - `tools/install-host-win.ps1` done: manifest in `%LOCALAPPDATA%\BetterPiP`, HKCU keys for Chrome, Chromium
+     (**Helium reads `Software\Chromium`**, checked in its chrome.dll), Edge, Brave, Vivaldi. `-Uninstall` removes them.
    - Shared contract (`src/video/mod.rs`): `StreamConfig`, `Frame { data, key, ts_us, display }`, trait
      `VideoSink { configure, submit, flush }` + per-OS `create_sink(&WebviewWindow)`. The Mac thread
      (branch `macos-native-video`) implements it in `video/macos.rs`.
