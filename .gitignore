@@ -1,0 +1,5 @@
+test/out/
+.DS_Store
+companion/src-tauri/target/
+companion/src-tauri/gen/
+node_modules/

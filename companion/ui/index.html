@@ -1,0 +1,23 @@
+<!doctype html>
+<html style="background: #000">
+<head>
+  <meta charset="utf-8">
+  <style>html, body { background: #000; margin: 0; }</style>
+  <title>Picture-in-Picture</title>
+</head>
+<body>
+  <script>
+    // Report script errors to the app log (see BP_DEBUG_LOG).
+    const report = (message) =>
+      window.__TAURI__?.core.invoke('send', { msg: { type: 'jserror', message: String(message) } });
+    addEventListener('error', (e) => report(`${e.message} @ ${e.filename}:${e.lineno}`));
+    addEventListener('unhandledrejection', (e) => report(e.reason?.stack || e.reason));
+    report('page loaded: tauri=' + typeof window.__TAURI__);
+  </script>
+  <!-- Shared with the extension; copied in by tools/sync-ui.mjs -->
+  <script src="shared/util.js"></script>
+  <script src="shared/styles.js"></script>
+  <script src="shared/player-ui.js"></script>
+  <script src="player.js"></script>
+</body>
+</html>

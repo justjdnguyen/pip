@@ -1,0 +1,52 @@
+{
+  "manifest_version": 3,
+  "name": "Better PiP",
+  "version": "0.1.0",
+  "description": "Firefox-style Picture-in-Picture for Chromium: hover toggle, scrubber, volume, captions, skip, fullscreen.",
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAi0WSFSf410chXWdSmD77KADdwzhxm1g06ly1cqDQF+pJCqqIdZYTJn10lU5BUqUoYMIoTETDdDpPM4aeC7vS7BBWwFowoOy5WJ0pNAoxbX9n/pMmmQ3UXpv20h6NC64q3ZtZMJAVwX59M2l365qslAWl6A5l/OtXpicVyZ4Jt/2ufbs50qZxXCcTI0AR+ooD7VHQi+5eOFYHL7aftlBktzbvoMcILt25AnRtRrrXA2o9AUB7kAJkzky6sE8HGCO8GIfv8w7OIyfVFtd79g+tx4xEmQCZ+Zn2i19tf9UruiYAdgeRjL2GJxFeHPeYjwHgI2AMm0pBqDjJEBEK09Y3NwIDAQAB",
+  "minimum_chrome_version": "116",
+  "icons": {
+    "16": "assets/icon-16.png",
+    "32": "assets/icon-32.png",
+    "48": "assets/icon-48.png",
+    "128": "assets/icon-128.png"
+  },
+  "action": {
+    "default_title": "Picture-in-Picture (Alt+P)",
+    "default_icon": {
+      "16": "assets/icon-16.png",
+      "32": "assets/icon-32.png"
+    }
+  },
+  "background": {
+    "service_worker": "src/background.js"
+  },
+  "permissions": [
+    "storage",
+    "nativeMessaging"
+  ],
+  "content_scripts": [
+    {
+      "matches": [
+        "<all_urls>"
+      ],
+      "all_frames": true,
+      "run_at": "document_idle",
+      "js": [
+        "src/content/util.js",
+        "src/content/styles.js",
+        "src/content/adapters.js",
+        "src/content/player-ui.js",
+        "src/content/pip-session.js",
+        "src/content/app-session.js",
+        "src/content/toggle.js",
+        "src/content/main.js"
+      ]
+    }
+  ],
+  "commands": {
+    "toggle-pip": {
+      "description": "Toggle Picture-in-Picture for the current video"
+    }
+  }
+}

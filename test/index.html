@@ -1,0 +1,24 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Better PiP test page</title>
+<style>
+  body { font: 15px system-ui; margin: 32px; background: #f4f4f5; }
+  .player { position: relative; width: 720px; max-width: 100%; }
+  video { width: 100%; display: block; background: #000; }
+  code { background: #e4e4e7; padding: 1px 4px; border-radius: 3px; }
+</style>
+<h1>Better PiP test page</h1>
+<p>Hover the video for the PiP button, or press <code>Alt+P</code>. Use <code>?src=URL</code> to test another file.</p>
+<div class="player">
+  <video id="v" controls crossorigin="anonymous" playsinline>
+    <track kind="subtitles" srclang="en" label="English" src="captions.vtt">
+  </video>
+</div>
+<h2>Second video (in normal flow)</h2>
+<video id="v2" controls width="480" crossorigin="anonymous"></video>
+<script>
+  const src = new URLSearchParams(location.search).get('src')
+    || 'https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.webm';
+  document.getElementById('v').src = src;
+  document.getElementById('v2').src = src;
+</script>
