@@ -27,13 +27,7 @@ Please report reproducible problems with your OS, browser, video site, and wheth
 the companion was installed. Remove personal information from any logs or screenshots.
 Windows N editions also need Microsoft's Media Feature Pack for Media Foundation.
 
-### Dependency source
+### Third-party licenses
 
-Bundled third-party notices list the dependency versions and their licenses. Unmodified
-sources are available from the corresponding version pages on crates.io. In particular,
-the MPL-2.0 components included in the dependency notices are available under MPL-2.0:
-[dtoa-short 0.3.5](https://crates.io/crates/dtoa-short/0.3.5),
-[cssparser-macros 0.7.1](https://crates.io/crates/cssparser-macros/0.7.1),
-[cssparser 0.37.0](https://crates.io/crates/cssparser/0.37.0),
-[option-ext 0.2.0](https://crates.io/crates/option-ext/0.2.0), and
-[selectors 0.38.0](https://crates.io/crates/selectors/0.38.0).
+Companion downloads include `THIRD-PARTY-LICENSES.html` with dependency licenses
+and links to their source code.
