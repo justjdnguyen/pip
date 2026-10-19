@@ -1,0 +1,17 @@
+<!-- Test page for src-tauri/src/bin/dcomp_spike.rs (not used by the app). -->
+<!doctype html><html><head><meta charset="utf-8"><style>
+    html, body { background: transparent; margin: 0; height: 100%; font: 13px system-ui; color: #fff; overflow: hidden; }
+    .label { position: absolute; top: 12px; left: 12px; padding: 4px 8px; background: rgba(0,0,0,.6); border-radius: 4px; }
+    .tint { position: absolute; top: 12px; right: 12px; width: 120px; height: 60px; background: rgba(255,0,0,.4);
+            display: grid; place-items: center; border-radius: 6px; }
+    .bar { position: absolute; left: 0; right: 0; bottom: 0; height: 56px; display: flex; align-items: center; gap: 10px;
+           padding: 0 14px; background: linear-gradient(transparent, rgba(0,0,0,.75)); }
+    button { background: rgba(255,255,255,.15); color: #fff; border: 0; border-radius: 50%; width: 32px; height: 32px; font-size: 14px; }
+    button:hover { background: rgba(255,255,255,.4); }
+    input { flex: 1; }
+</style></head><body>
+    <div class="label">WebView2 page on top (transparent)</div>
+    <div class="tint">40% red</div>
+    <div class="bar"><button>&#9654;</button><input type="range"><span id="t">0</span></div>
+    <script>let n = 0; setInterval(() => document.getElementById('t').textContent = (++n / 10).toFixed(1) + 's', 100);</script>
+</body></html>

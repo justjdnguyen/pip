@@ -109,6 +109,8 @@ dependencies = [
  "serde_json",
  "tauri",
  "tauri-build",
+ "windows",
+ "windows-numerics",
 ]
 
 [[package]]

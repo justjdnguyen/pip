@@ -81,6 +81,18 @@ Same structure on both platforms; only "decode" and "show" differ.
      (`topmost = false`, so it sits under child windows), visual with a composition swap chain, and the
      WebView2 child set transparent (`.transparent(true)` in Tauri). Confirm the web page's transparent
      areas show the swap chain, and that controls draw on top.
+   - **Spike done (2026-10-19), it works:** `companion/src-tauri/src/bin/dcomp_spike.rs` + `companion/ui/spike.html`
+     (`cargo run --bin dcomp_spike`, `BP_SPIKE_SECONDS=n` to auto-quit). Window built with `.transparent(true)`
+     + `.no_redirection_bitmap(true)`; DComp target (`topmost=false`) → root visual → black 16×16 backdrop
+     surface stretched to the window (letterbox bars; without it they're see-through) + a fixed 1280×720
+     flip-model composition swap chain scaled/centred by `SetTransform2` + `Commit()` in the `WM_SIZE`
+     subclass handler. Verified by screenshots: the page's transparent areas show the swap chain, the
+     controls/gradient/40%-alpha panel blend on top, letterboxing is correct, `WM_SIZING` aspect lock
+     works. Scripted corner drag: no gaps; in 1 of 5 mid-drag captures the video was one frame *ahead* of
+     the window edge (slight crop), worth a look by hand-dragging (maybe apply the transform in
+     `WM_WINDOWPOSCHANGING` or use `IDCompositionDevice::WaitForCommitCompletion`/`DwmFlush`).
+     Gotchas: Tauri examples crash with 0xC0000139 (no comctl32 v6 manifest), so spikes go in `src/bin/`;
+     data: URLs need the `webview-data-url` feature, so test pages go in `ui/`.
    - Decode: Media Foundation H.264 decoder MFT with a D3D11 device manager, low-latency mode, NV12 out.
    - Show: ID3D11VideoProcessor blit NV12 → BGRA swap chain sized to the video; on `WM_SIZE` only update
      the DComp visual's scale transform + `Commit()` (synchronous with DWM → smooth resize).
@@ -105,7 +117,8 @@ fallback to the web path if native fails.
 ## Building and running on Windows
 
 1. Install: Rust (rustup, MSVC toolchain), Visual Studio Build Tools (C++ workload + Windows SDK),
-   Node.js. WebView2 runtime ships with Windows 11.
+   Node.js. WebView2 runtime ships with Windows 11. (All present on the Windows PC as of 2026-10-19:
+   Rust 1.92 MSVC, VS 2022 + Build Tools, SDK 10.0.26100, Node 25, WebView2 155.)
 2. `node tools/sync-ui.mjs`, then `cd companion/src-tauri && cargo build --release`.
 3. Register the host with the browser (install script still to be written; see above).
 4. Load the extension unpacked from the repo root (`chrome://extensions` → Developer mode → Load unpacked).
