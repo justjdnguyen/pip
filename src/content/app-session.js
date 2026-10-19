@@ -410,6 +410,9 @@ BP.AppPip = (() => {
         case 'muted':
           video.muted = !!value;
           break;
+        case 'rate':
+          if (Number.isFinite(value) && value > 0) video.playbackRate = BP.clamp(value, 0.0625, 16);
+          break;
         case 'captions':
           if (captions.available()) captions.toggle();
           setTimeout(sendCaptions, 200);

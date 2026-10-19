@@ -49,6 +49,7 @@ const media = {
   get duration() { return st.duration; },
   get volume() { return st.volume; },
   get muted() { return st.muted; },
+  get rate() { return st.rate; },
   seeking: false,
   get bufferedEnd() { return st.bufferedEnd; },
   play() {
@@ -79,6 +80,13 @@ const media = {
     st = { ...st, muted: m };
     command('muted', m);
     emit('volumechange');
+  },
+  setRate(r) {
+    // Restart the local clock at the new speed so the scrubber stays in step.
+    st = { ...st, currentTime: media.currentTime, rate: r };
+    stAt = now();
+    command('rate', r);
+    emit('ratechange');
   },
   on(type, fn) {
     if (!listeners.has(type)) listeners.set(type, new Set());
@@ -120,6 +128,7 @@ function applyState(msg) {
   if (prev.paused !== st.paused || prev.ended !== st.ended) emit('play');
   if (prev.duration !== st.duration) emit('durationchange');
   if (prev.volume !== st.volume || prev.muted !== st.muted) emit('volumechange');
+  if (prev.rate !== st.rate) emit('ratechange');
   emit('timeupdate', 'progress');
 }
 

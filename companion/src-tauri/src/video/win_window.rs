@@ -75,6 +75,48 @@ pub fn set_aspect(hwnd: HWND, width: f64, height: f64) {
     }
 }
 
+/// Make the client area exactly `width`×`height` physical pixels, keeping the
+/// window's position. (Tauri's set_size is off by a title bar's height for our
+/// borderless, transparent windows: 480×270 came out 480×300.)
+pub fn set_client_size(hwnd: HWND, width: i32, height: i32) {
+    let (mut wr, mut cr) = (RECT::default(), RECT::default());
+    unsafe {
+        let _ = GetWindowRect(hwnd, &mut wr);
+        let _ = GetClientRect(hwnd, &mut cr);
+        let fw = (wr.right - wr.left) - (cr.right - cr.left);
+        let fh = (wr.bottom - wr.top) - (cr.bottom - cr.top);
+        let _ = SetWindowPos(
+            hwnd,
+            None,
+            0,
+            0,
+            width + fw,
+            height + fh,
+            SWP_NOMOVE | SWP_NOZORDER | SWP_NOACTIVATE,
+        );
+    }
+}
+
+/// Put the client area's top-left corner at (x, y) in screen pixels. (Window
+/// positions include invisible resize borders, which differ per side.)
+pub fn set_client_pos(hwnd: HWND, x: i32, y: i32) {
+    let mut wr = RECT::default();
+    let mut origin = windows::Win32::Foundation::POINT::default();
+    unsafe {
+        let _ = GetWindowRect(hwnd, &mut wr);
+        let _ = windows::Win32::Graphics::Gdi::ClientToScreen(hwnd, &mut origin);
+        let _ = SetWindowPos(
+            hwnd,
+            None,
+            x - (origin.x - wr.left),
+            y - (origin.y - wr.top),
+            0,
+            0,
+            SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE,
+        );
+    }
+}
+
 /// Record the picture size and ask the UI thread to refit (any thread).
 pub fn set_video_size(hwnd: HWND, width: u32, height: u32) {
     if let Some(s) = get(hwnd) {

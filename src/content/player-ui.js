@@ -5,15 +5,18 @@
 // commands back to the tab).
 //
 // media: {
-//   paused, ended, currentTime, duration, volume, muted, seeking, bufferedEnd
-//   play(), pause(), seek(t), setVolume(v), setMuted(m)
+//   paused, ended, currentTime, duration, volume, muted, rate, seeking, bufferedEnd
+//   play(), pause(), seek(t), setVolume(v), setMuted(m), setRate(r)
 //   on(type, fn)  – 'play' 'pause' 'ended' 'timeupdate' 'durationchange'
-//                   'loadedmetadata' 'emptied' 'progress' 'volumechange' 'seeked'
+//                   'loadedmetadata' 'emptied' 'progress' 'volumechange' 'seeked' 'ratechange'
 // }
 // captions: { available(), enabled(), toggle(), onChange(cb(lines)) }
 // actions:  { returnToTab(), close(), fullscreen() }
 
 BP.SKIP_SECONDS = 5;
+// Speeds the speed button cycles through, and the finer steps for < and >.
+BP.QUICK_RATES = [1, 1.5, 2];
+BP.RATE_STEPS = [0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2];
 
 // Wrap a real <video> element as `media`.
 BP.localMedia = (video, signal) => ({
@@ -23,6 +26,7 @@ BP.localMedia = (video, signal) => ({
   get duration() { return video.duration; },
   get volume() { return video.volume; },
   get muted() { return video.muted; },
+  get rate() { return video.playbackRate; },
   get seeking() { return video.seeking; },
   get bufferedEnd() { return BP.bufferedEnd(video); },
   play: () => video.play().catch(() => {}),
@@ -30,6 +34,7 @@ BP.localMedia = (video, signal) => ({
   seek: (t) => { video.currentTime = t; },
   setVolume: (v) => { video.volume = v; },
   setMuted: (m) => { video.muted = m; },
+  setRate: (r) => { video.playbackRate = r; },
   on: (type, fn) => video.addEventListener(type, fn, { signal }),
 });
 
@@ -81,6 +86,11 @@ BP.createPlayerUI = ({ doc, win, media, captions, actions, closeTitle = 'Close (
   const vol = h('div', { class: 'slider vol', role: 'slider', 'aria-label': 'Volume' }, [
     h('div', { class: 'track' }, [volFill, volKnob]),
   ]);
+  const rateBtn = h('button', { class: 'rate', title: 'Speed (S)', 'aria-label': 'Playback speed' });
+  on(rateBtn, 'click', (e) => {
+    e.stopPropagation();
+    cycleRate();
+  });
   const ccBtn = button('cc', 'ccOff', 'Captions (C)', toggleCaptions);
   const fsBtn = button('fs', 'fullscreen', 'Fullscreen (F)', () => actions.fullscreen());
 
@@ -97,7 +107,7 @@ BP.createPlayerUI = ({ doc, win, media, captions, actions, closeTitle = 'Close (
     h('div', { class: 'row' }, [
       h('div', {}, [timeEl, liveBadge]),
       h('div', { class: 'transport' }, [backBtn, playBtn, fwdBtn]),
-      h('div', { class: 'right' }, [muteBtn, vol, ccBtn, fsBtn]),
+      h('div', { class: 'right' }, [muteBtn, vol, rateBtn, ccBtn, fsBtn]),
     ]),
     scrub,
   ]);
@@ -157,7 +167,16 @@ BP.createPlayerUI = ({ doc, win, media, captions, actions, closeTitle = 'Close (
     ccBtn.title = available ? (enabled ? 'Turn off captions (C)' : 'Turn on captions (C)') : 'No captions available';
   }
 
+  const formatRate = (r) => `${+r.toFixed(2)}×`;
+  function renderRate() {
+    const r = media.rate || 1;
+    rateBtn.textContent = formatRate(r);
+    rateBtn.classList.toggle('changed', r !== 1);
+    rateBtn.title = `Speed ${formatRate(r)} (S; < and > for finer steps)`;
+  }
+
   function renderAll() {
+    renderRate();
     renderPlay();
     renderTime();
     renderBuffered();
@@ -175,6 +194,7 @@ BP.createPlayerUI = ({ doc, win, media, captions, actions, closeTitle = 'Close (
   media.on('progress', renderBuffered);
   media.on('volumechange', renderVolume);
   media.on('seeked', onSeeked);
+  media.on('ratechange', renderRate);
 
   // Smooth scrubber while visible and playing (timeupdate is only ~4/sec).
   const tick = () => {
@@ -233,6 +253,25 @@ BP.createPlayerUI = ({ doc, win, media, captions, actions, closeTitle = 'Close (
     // Some sites (YouTube) update asynchronously; re-render shortly after.
     renderCaptionsButton();
     setTimeout(renderCaptionsButton, 150);
+  }
+
+  function setRate(r) {
+    media.setRate(r);
+    renderRate();
+    flash(`Speed ${formatRate(r)}`);
+  }
+  // Button / S: 1× → 1.5× → 2× → 1×. From any other speed, go to the next quick
+  // speed above it (or back to 1×).
+  function cycleRate() {
+    const r = media.rate || 1;
+    setRate(BP.QUICK_RATES.find((q) => q > r + 0.01) ?? BP.QUICK_RATES[0]);
+  }
+  // < and >: one finer step down or up.
+  function stepRate(dir) {
+    const r = media.rate || 1;
+    const steps = BP.RATE_STEPS;
+    const next = dir > 0 ? steps.find((s) => s > r + 0.01) : [...steps].reverse().find((s) => s < r - 0.01);
+    if (next) setRate(next);
   }
 
   let osdTimer = 0;
@@ -372,6 +411,16 @@ BP.createPlayerUI = ({ doc, win, media, captions, actions, closeTitle = 'Close (
       case 'f':
       case 'F':
         actions.fullscreen();
+        break;
+      case 's':
+      case 'S':
+        cycleRate();
+        break;
+      case '>':
+        stepRate(1);
+        break;
+      case '<':
+        stepRate(-1);
         break;
       case 'Escape':
         if (actions.exitFullscreen) actions.exitFullscreen();

@@ -197,6 +197,49 @@ fn set_aspect_ratio(window: &WebviewWindow, width: f64, height: f64) {
 #[cfg(not(any(target_os = "macos", windows)))]
 fn set_aspect_ratio(_window: &WebviewWindow, _width: f64, _height: f64) {}
 
+/// Set the size of the window's content area (logical pixels).
+#[cfg(windows)]
+fn set_inner_size(window: &WebviewWindow, width: f64, height: f64) {
+    // Not window.set_size: it's off by a title bar's height for these windows.
+    let scale = window.scale_factor().unwrap_or(1.0);
+    match window.hwnd() {
+        Ok(hwnd) => video::win_window::set_client_size(
+            windows::Win32::Foundation::HWND(hwnd.0 as _),
+            (width * scale).round() as i32,
+            (height * scale).round() as i32,
+        ),
+        Err(_) => {
+            let _ = window.set_size(LogicalSize::new(width, height));
+        }
+    }
+}
+
+#[cfg(not(windows))]
+fn set_inner_size(window: &WebviewWindow, width: f64, height: f64) {
+    let _ = window.set_size(LogicalSize::new(width, height));
+}
+
+/// Move the window so its content area starts at (x, y) (logical pixels).
+#[cfg(windows)]
+fn set_inner_position(window: &WebviewWindow, x: f64, y: f64) {
+    let scale = window.scale_factor().unwrap_or(1.0);
+    match window.hwnd() {
+        Ok(hwnd) => video::win_window::set_client_pos(
+            windows::Win32::Foundation::HWND(hwnd.0 as _),
+            (x * scale).round() as i32,
+            (y * scale).round() as i32,
+        ),
+        Err(_) => {
+            let _ = window.set_position(LogicalPosition::new(x, y));
+        }
+    }
+}
+
+#[cfg(not(windows))]
+fn set_inner_position(window: &WebviewWindow, x: f64, y: f64) {
+    let _ = window.set_position(LogicalPosition::new(x, y));
+}
+
 /// Let the window float over other apps' fullscreen Spaces too.
 #[cfg(target_os = "macos")]
 fn float_over_fullscreen_apps(window: &WebviewWindow) {
@@ -362,7 +405,7 @@ fn open_window(app: &AppHandle, msg: &Value) {
         }
 
         let _ = window.set_title(&title);
-        let _ = window.set_size(LogicalSize::new(width, height));
+        set_inner_size(&window, width, height);
         set_aspect_ratio(&window, width, height);
         // Bottom-right corner of the main screen, like Firefox.
         if let Ok(Some(monitor)) = window.primary_monitor() {
@@ -371,10 +414,7 @@ fn open_window(app: &AppHandle, msg: &Value) {
             let pos = area.position.to_logical::<f64>(scale);
             let size = area.size.to_logical::<f64>(scale);
             let margin = 24.0;
-            let _ = window.set_position(LogicalPosition::new(
-                pos.x + size.width - width - margin,
-                pos.y + size.height - height - margin,
-            ));
+            set_inner_position(&window, pos.x + size.width - width - margin, pos.y + size.height - height - margin);
         }
         show_without_focus(&window);
         deliver_to_label(&handle, &label, json!({ "type": "assigned" }));

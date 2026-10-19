@@ -56,6 +56,11 @@ button:focus-visible { outline: 2px solid #fff; outline-offset: -2px; }
 button svg { width: var(--icon); height: var(--icon); fill: currentColor; }
 button.play svg { width: calc(var(--icon) * 1.35); height: calc(var(--icon) * 1.35); }
 button[disabled] { opacity: .35; cursor: default; background: none; }
+button.rate {
+  width: auto; min-width: var(--btn); padding: 0 calc(var(--btn) * .18);
+  font-size: clamp(12px, 2.4vmin, 17px); font-weight: 600; font-variant-numeric: tabular-nums;
+}
+button.rate.changed { color: #7dd3fc; }
 .top button { background: rgba(0, 0, 0, .35); }
 .top button:hover { background: rgba(255, 255, 255, .2); }
 
