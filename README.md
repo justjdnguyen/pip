@@ -2,52 +2,96 @@
 
 # Better PiP
 
-Firefox-style Picture-in-Picture for Chromium browsers (Chrome, Helium, Brave, Arc, Edge…).
+Firefox-style Picture-in-Picture for Chromium browsers, with a native companion
+for Windows and macOS. Hover over a video, click the PiP button, and keep watching
+in a floating window with playback controls, captions, and speed shortcuts.
 
-- **Hover button** on the right edge of any video ("Watch in Picture-in-Picture")
-- **Placeholder** in the page while the video is popped out; click it to bring the video back
-- **PiP window controls:** scrubber with hover time, play/pause, skip ±5s, volume + mute,
-  captions, fullscreen, back to tab (top left), close (top right)
-- **Captions** for standard `<track>` subtitles, plus YouTube's own captions
-- Controls scale with the window size and auto-hide
+**Early preview:** tested primarily with Helium and YouTube. Compatibility varies by
+browser, site, and codec. Windows 11 and macOS 13.3 or newer are the desktop targets.
+Linux has no supported companion build yet.
 
-## Install (unpacked)
+## Install
 
-1. Open `chrome://extensions` (Helium: `helium://extensions`) and turn on **Developer mode**.
-2. Click **Load unpacked** and pick this folder.
-3. Reload any tabs that were already open.
+Install the **browser extension** and, for native windows, the **desktop companion**.
+Release downloads do not require Node.js, Rust, or developer build tools.
+There is no Chrome Web Store listing yet.
+
+### 1. Browser extension
+
+1. Download `better-pip-extension-<version>.zip` from
+   [Releases](https://github.com/justjdnguyen/pip/releases).
+2. Extract it into a permanent folder. Keep that folder after installation.
+3. Open `chrome://extensions` (Helium: `helium://extensions`; Edge: `edge://extensions`).
+4. Enable **Developer mode**, click **Load unpacked**, and choose the folder containing
+   `manifest.json`.
+5. Reload video tabs. Hover over a video and click its PiP button, or press `Alt+P`
+   (`Option+P` on a Mac).
+
+### 2. Desktop companion
+
+**Windows 11:** download and extract `better-pip-windows-x64-<version>.zip`, then
+double-click `Install.cmd`. It installs under `%LOCALAPPDATA%\BetterPiP` and registers
+the native host for your user; administrator access is not required.
+WebView2 Runtime must be installed (normally included with Windows 11).
+
+**macOS:** choose `better-pip-macos-arm64-<version>.tar.gz` for Apple silicon or
+`better-pip-macos-x64-<version>.tar.gz` for Intel. Extract it, open Terminal in the
+extracted folder, and run `bash install.sh`. It installs under
+`~/Library/Application Support/BetterPiP` and registers browsers already installed
+for your user. Open each browser once before installing the companion.
+
+Restart your browser after installation. The browser starts the companion automatically;
+you do not need to open it yourself. Preview binaries are **not signed with a trusted
+publisher certificate or notarized**. Your OS may ask for approval; see
+[installation and troubleshooting](docs/INSTALL.md) before proceeding.
+
+Without the companion, the extension tries Document PiP and then built-in video PiP.
+Those browser modes have browser-imposed window limits and may provide fewer controls.
+
+## Features
+
+- Native, always-on-top windows with smooth, aspect-locked resizing.
+- Multiple companion windows; no Chromium Document PiP maximum-size restriction.
+- Scrubber, play/pause, skip, volume, mute, captions, fullscreen, and return to tab.
+- Speed button: **1× → 1.5× → 2× → 1×**, plus finer keyboard steps.
+- Standard `<track>` captions and YouTube captions where available.
+- Video stays in the source tab; its sound is delayed to match the companion picture.
 
 ## Shortcuts
 
-| Where | Key | Action |
-| --- | --- | --- |
-| Page | `Alt+P` (`⌥P`) | Toggle PiP for the main video |
-| PiP | `Space` / `K` | Play / pause |
-| PiP | `←` `→` | Skip 5s |
-| PiP | `J` `L` | Skip 10s |
-| PiP | `↑` `↓` | Volume |
-| PiP | `M` / `C` / `F` | Mute / captions / fullscreen |
-| PiP | `0`–`9`, `Home`, `End` | Jump to position |
+- Page: `Alt+P` / `Option+P` toggles PiP for the main video.
+- PiP: `Space` / `K` plays or pauses; `←` / `→` skips 5 seconds; `J` / `L` skips 10.
+- `↑` / `↓` adjusts volume; `M` mutes; `C` toggles captions.
+- `S` cycles speed; `<` / `>` steps between 0.25× and 2×.
+- `F` or double-click toggles fullscreen; `Esc` exits it.
+- `0`–`9`, `Home`, and `End` jump to a position.
 
-Double-click the PiP video to go fullscreen.
+## Known limitations
 
-## How it works
+- Protected/DRM video and some cross-origin sources cannot be captured. Browser PiP
+  may still work, depending on the browser and site.
+- Browser-only Document PiP allows one window at a time and caps window size.
+- Simultaneous PiPs, mixed-DPI/multiple-monitor setups, and Mac sleep/wake recovery
+  need broader testing.
+- Native video uses H.264. Web fallback may use more CPU or render less smoothly.
+- No automatic updater yet: install a newer companion release, update/reload the
+  unpacked extension, and refresh video tabs.
+- Intel Mac builds are generated by CI; they have not been manually validated on
+  every supported Intel machine.
 
-The extension uses Chrome's [Document Picture-in-Picture API](https://developer.chrome.com/docs/web-platform/document-picture-in-picture)
-to open an always-on-top window, then moves the page's real `<video>` element into it
-(so it keeps playing, with no re-buffering) and draws the controls around it.
-Site-specific behaviour (captions, fullscreen, layout) lives in `src/content/adapters.js`,
-similar to Firefox's PiP "site wrappers".
+## Privacy
 
-## Known limits (Chromium, not this extension)
+No accounts, analytics, advertising, or project-operated server. Video frames,
+playback state, captions, and the tab title travel locally to the companion through
+native messaging. The source website still makes its usual network requests.
+See [PRIVACY.md](PRIVACY.md) for permissions and optional debug logging.
 
-- **One PiP window at a time.** Chromium closes the existing PiP window when another opens.
-- **Max size ≈ 80% of one display.** The window can't be stretched across monitors.
-- Videos inside **cross-origin iframes** (e.g. YouTube embeds on other sites) can't be moved,
-  so they fall back to Chrome's built-in PiP with its basic controls.
+## Build and contribute
 
-## Development
+See [CONTRIBUTING.md](CONTRIBUTING.md) for source builds and checks,
+[release instructions](docs/RELEASING.md) for packages and future store publication,
+and [HANDOFF.md](HANDOFF.md) for implementation notes. Report reproducible problems
+in [Issues](https://github.com/justjdnguyen/pip/issues).
 
-- `node tools/make-icons.mjs` regenerates the PNG icons.
-- `node tools/e2e.mjs` loads the extension in Helium, opens `test/index.html`, clicks through
-  PiP and writes screenshots to `test/out/`. Set `PAGE=<url>` to test a real site.
+Licensed under [MIT](LICENSE). Third-party dependencies retain their own licenses;
+companion packages include their license notices.

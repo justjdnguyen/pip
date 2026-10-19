@@ -1,0 +1,92 @@
+name: Preview release
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing release tag (for example v0.1.0-preview.1)
+        required: true
+        type: string
+permissions:
+  contents: read
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-2022
+            package: windows-x64
+          - os: macos-15
+            package: macos-arm64
+          - os: macos-15-intel
+            package: macos-x64
+    runs-on: ${{ matrix.os }}
+    env:
+      MACOSX_DEPLOYMENT_TARGET: '13.3'
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ inputs.tag || github.ref }}
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+      - name: Select stable Rust
+        run: rustup default stable
+      - run: node tools/check-release.mjs
+      - run: cargo test --locked --manifest-path companion/src-tauri/Cargo.toml --bin better-pip-host
+      - run: cargo build --release --locked --manifest-path companion/src-tauri/Cargo.toml --bin better-pip-host
+      - name: Dependency license notices
+        shell: bash
+        run: |
+          cargo install cargo-about --locked --version 0.8.4
+          mkdir -p dist
+          cargo about generate --locked --fail --manifest-path companion/src-tauri/Cargo.toml --all-features tools/licenses.hbs -o dist/THIRD-PARTY-LICENSES.html
+      - name: Package
+        shell: bash
+        env:
+          RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
+          RELEASE_PACKAGE: ${{ matrix.package }}
+        run: |
+          set -euo pipefail
+          version="${RELEASE_TAG#v}"
+          node tools/package-release.mjs "$RELEASE_PACKAGE" "$version"
+          if [[ "$RELEASE_PACKAGE" == windows-x64 ]]; then
+            node tools/package-release.mjs extension "$version"
+          fi
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: ${{ matrix.package }}
+          path: |
+            dist/*.zip
+            dist/*.tar.gz
+            dist/*.sha256
+          if-no-files-found: error
+  draft:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ inputs.tag || github.ref }}
+          persist-credentials: false
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          path: dist
+          merge-multiple: true
+      - name: Create draft preview with downloads
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
+        run: |
+          set -euo pipefail
+          cat dist/*.sha256 > dist/SHA256SUMS.txt
+          if ! gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            gh release create "$RELEASE_TAG" --verify-tag --draft --prerelease --title "Better PiP $RELEASE_TAG" --notes-file docs/preview-notes.md
+          fi
+          gh release upload "$RELEASE_TAG" dist/*.zip dist/*.tar.gz dist/SHA256SUMS.txt --clobber

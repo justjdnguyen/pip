@@ -1,0 +1,3 @@
+# The Chrome manifest's RSA PUBLIC key keeps the unpacked extension ID stable.
+# This exact historical finding is public identity material, not a private key.
+4731b9e2dc2001183ff5f21b7118f663dc270b8f:manifest.json:generic-api-key:6

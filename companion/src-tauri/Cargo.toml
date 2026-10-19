@@ -3,6 +3,8 @@ name = "better-pip-host"
 version = "0.1.0"
 description = "Better PiP companion app: borderless, always-on-top Picture-in-Picture windows"
 edition = "2021"
+license = "MIT"
+repository = "https://github.com/justjdnguyen/pip"
 default-run = "better-pip-host"
 
 [build-dependencies]

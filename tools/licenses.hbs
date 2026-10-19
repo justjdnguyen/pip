@@ -1,0 +1,11 @@
+<!doctype html>
+<html lang="en"><meta charset="utf-8"><title>Better PiP dependency licenses</title>
+<style>body{font:16px system-ui;max-width:960px;margin:40px auto;padding:0 20px}pre{white-space:pre-wrap;overflow-wrap:anywhere}</style>
+<h1>Better PiP dependency licenses</h1>
+<p>These third-party components retain their own license terms and notices.</p>
+{{#each licenses}}
+<section><h2>{{name}}</h2><ul>
+{{#each used_by}}<li>{{crate.name}} {{crate.version}}</li>{{/each}}
+</ul><pre>{{text}}</pre></section>
+{{/each}}
+</html>

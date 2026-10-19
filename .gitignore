@@ -3,3 +3,4 @@ test/out/
 companion/src-tauri/target/
 companion/src-tauri/gen/
 node_modules/
+dist/
