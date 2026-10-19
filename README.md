@@ -1,97 +1,105 @@
-<img src="assets/icon.svg" width="64" height="64" alt="">
+<img src="assets/wordmark.svg" width="960" alt="Better PiP">
 
-# Better PiP
+# Your video, above it all.
 
-Firefox-style Picture-in-Picture for Chromium browsers, with a native companion
-for Windows and macOS. Hover over a video, click the PiP button, and keep watching
-in a floating window with playback controls, captions, and speed shortcuts.
+Picture-in-Picture for Chromium browsers, with native floating windows on Windows
+and macOS. Keep a video in view while you work, read, or switch tabs.
 
-**Early preview:** tested primarily with Helium and YouTube. Compatibility varies by
-browser, site, and codec. Windows 11 and macOS 13.3 or newer are the desktop targets.
-Linux has no supported companion build yet.
+**[Download the preview](https://github.com/justjdnguyen/pip/releases/tag/v0.1.0-preview.2)**
+&nbsp; [Installation guide](docs/INSTALL.md) &nbsp; [Report a bug](https://github.com/justjdnguyen/pip/issues)
 
-## Install
+## A window that follows you
 
-Install the **browser extension** and, for native windows, the **desktop companion**.
-Release downloads do not require Node.js, Rust, or developer build tools.
+Hover over a video and click the PiP button. Drag the window where you want it,
+resize it without losing its shape, and keep the controls within reach.
+
+- **Make room.** Native video follows the window as you resize. The companion
+  supports multiple windows and avoids Document PiP's maximum-size restriction.
+- **Set the pace.** Click the speed button or press `S` to cycle **1×, 1.5×, 2×**.
+  Use `<` and `>` for finer steps.
+- **Keep control.** Scrub, skip, adjust volume, toggle captions, or go fullscreen.
+  Return the video to its tab when you're done.
+- **Keep it local.** Video travels from the tab to the companion on your computer.
+  No account, analytics, or project-operated server. [Privacy details](PRIVACY.md)
+
+Standard video subtitles and YouTube captions are supported where available.
+Audio stays in the source tab and is delayed to match the companion picture.
+
+## Get started
+
+Install the browser extension first, then the companion for native windows.
+**No Rust, Node.js, or build tools required.**
+
+### Browser extension
+
+1. Download and extract the **extension ZIP** from the
+   [preview release](https://github.com/justjdnguyen/pip/releases/tag/v0.1.0-preview.2)
+   into a folder you will keep.
+2. Open `chrome://extensions`, turn on **Developer mode**, and click **Load unpacked**.
+   Select the folder containing `manifest.json`.
+3. Reload your video tabs. Hover over a video and click its PiP button, or press
+   `Alt+P` (`Option+P` on a Mac).
+
+In Helium, use `helium://extensions`; in Edge, use `edge://extensions`.
 There is no Chrome Web Store listing yet.
 
-### 1. Browser extension
+### Desktop companion
 
-1. Download `better-pip-extension-<version>.zip` from
-   [Releases](https://github.com/justjdnguyen/pip/releases).
-2. Extract it into a permanent folder. Keep that folder after installation.
-3. Open `chrome://extensions` (Helium: `helium://extensions`; Edge: `edge://extensions`).
-4. Enable **Developer mode**, click **Load unpacked**, and choose the folder containing
-   `manifest.json`.
-5. Reload video tabs. Hover over a video and click its PiP button, or press `Alt+P`
-   (`Option+P` on a Mac).
+Choose your companion from the same release:
 
-### 2. Desktop companion
+- **Windows 11, x64:** extract the Windows ZIP and double-click **Install.cmd**.
+- **Apple silicon:** extract the macOS arm64 archive and run **bash install.sh**
+  in its folder.
+- **Intel Mac:** extract the macOS x64 archive and run **bash install.sh**
+  in its folder.
 
-**Windows 11:** download and extract `better-pip-windows-x64-<version>.zip`, then
-double-click `Install.cmd`. It installs under `%LOCALAPPDATA%\BetterPiP` and registers
-the native host for your user; administrator access is not required.
-WebView2 Runtime must be installed (normally included with Windows 11).
+Restart your browser. It will launch the companion automatically when needed.
+Installation is per user and requires no administrator access. Open each browser
+once before installing the Mac companion.
 
-**macOS:** choose `better-pip-macos-arm64-<version>.tar.gz` for Apple silicon or
-`better-pip-macos-x64-<version>.tar.gz` for Intel. Extract it, open Terminal in the
-extracted folder, and run `bash install.sh`. It installs under
-`~/Library/Application Support/BetterPiP` and registers browsers already installed
-for your user. Open each browser once before installing the companion.
+The preview targets **Windows 11** and **macOS 13.3+**. WebView2 is required on Windows;
+Windows N editions also need the Media Feature Pack. The companion is not signed
+with a trusted publisher certificate or Apple-notarized. Read the
+[installation guide](docs/INSTALL.md) for OS approval, updates, and uninstallation.
 
-Restart your browser after installation. The browser starts the companion automatically;
-you do not need to open it yourself. Preview binaries are **not signed with a trusted
-publisher certificate or notarized**. Your OS may ask for approval; see
-[installation and troubleshooting](docs/INSTALL.md) before proceeding.
+**Prefer extension only?** Without the companion, Better PiP tries Document PiP,
+then the browser's built-in video PiP. Window limits and available controls depend
+on the browser. There is no supported Linux companion build yet.
 
-Without the companion, the extension tries Document PiP and then built-in video PiP.
-Those browser modes have browser-imposed window limits and may provide fewer controls.
+## Keep your hands on the keys
 
-## Features
+In the page, **Alt+P** / **Option+P** toggles PiP for the main video.
+Inside the PiP window:
 
-- Native, always-on-top windows with smooth, aspect-locked resizing.
-- Multiple companion windows; no Chromium Document PiP maximum-size restriction.
-- Scrubber, play/pause, skip, volume, mute, captions, fullscreen, and return to tab.
-- Speed button: **1× → 1.5× → 2× → 1×**, plus finer keyboard steps.
-- Standard `<track>` captions and YouTube captions where available.
-- Video stays in the source tab; its sound is delayed to match the companion picture.
+- **Space / K** plays or pauses. **← / →** skips 5 seconds; **J / L** skips 10.
+- **↑ / ↓** changes volume. **M** mutes; **C** toggles captions.
+- **S** cycles speed. **< / >** steps between 0.25× and 2×.
+- **F** or a double-click toggles fullscreen. **Esc** exits it.
+- **0–9**, **Home**, and **End** jump to a position.
 
-## Shortcuts
+## An early preview
 
-- Page: `Alt+P` / `Option+P` toggles PiP for the main video.
-- PiP: `Space` / `K` plays or pauses; `←` / `→` skips 5 seconds; `J` / `L` skips 10.
-- `↑` / `↓` adjusts volume; `M` mutes; `C` toggles captions.
-- `S` cycles speed; `<` / `>` steps between 0.25× and 2×.
-- `F` or double-click toggles fullscreen; `Esc` exits it.
-- `0`–`9`, `Home`, and `End` jump to a position.
+The main test setup is Helium with YouTube. Other Chromium browsers can load the
+extension, but behavior varies by browser, site, and codec.
 
-## Known limitations
+- DRM-protected video and some cross-origin sources cannot be captured.
+- Browser-only Document PiP permits one window at a time and caps its size.
+- Multiple PiPs, mixed-DPI monitors, and Mac sleep/wake need broader real-world testing.
+- Native playback uses H.264. Web fallback may use more CPU or feel less smooth.
+- Intel Mac builds are tested in CI; playback still needs testing on more real machines.
+- Updates are manual: install the new companion, replace/reload the extension,
+  and refresh your video tabs.
 
-- Protected/DRM video and some cross-origin sources cannot be captured. Browser PiP
-  may still work, depending on the browser and site.
-- Browser-only Document PiP allows one window at a time and caps window size.
-- Simultaneous PiPs, mixed-DPI/multiple-monitor setups, and Mac sleep/wake recovery
-  need broader testing.
-- Native video uses H.264. Web fallback may use more CPU or render less smoothly.
-- No automatic updater yet: install a newer companion release, update/reload the
-  unpacked extension, and refresh video tabs.
-- Intel Mac builds are generated by CI; they have not been manually validated on
-  every supported Intel machine.
+Found a problem? [Open an issue](https://github.com/justjdnguyen/pip/issues) with your
+OS, browser version, video site, and whether you installed the companion. Redact
+personal information from logs and screenshots before sharing them.
 
-## Privacy
+## Build something better
 
-No accounts, analytics, advertising, or project-operated server. Video frames,
-playback state, captions, and the tab title travel locally to the companion through
-native messaging. The source website still makes its usual network requests.
-See [PRIVACY.md](PRIVACY.md) for permissions and optional debug logging.
+Bug reports, browser compatibility results, and focused pull requests are welcome.
 
-## Build and contribute
+[Build from source](CONTRIBUTING.md) · [Release process](docs/RELEASING.md) ·
+[Implementation notes](HANDOFF.md)
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for source builds and checks,
-[release instructions](docs/RELEASING.md) for packages and future store publication,
-and [HANDOFF.md](HANDOFF.md) for implementation notes. Report reproducible problems
-in [Issues](https://github.com/justjdnguyen/pip/issues).
-
-Licensed under [MIT](LICENSE). Third-party dependencies retain their own licenses;
-companion packages include their license notices.
+Better PiP is [MIT licensed](LICENSE). Third-party components keep their own
+licenses; companion downloads include their notices and source locations.

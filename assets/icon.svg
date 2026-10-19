@@ -1,4 +1,6 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
-  <rect width="64" height="64" rx="14" fill="#e11d48"/>
-  <text x="32" y="32" dy="0.35em" text-anchor="middle" font-family="ui-sans-serif, system-ui, -apple-system, sans-serif" font-size="32" font-weight="600" fill="#ffffff">P</text>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Better PiP">
+  <rect width="64" height="64" rx="14" fill="#14251f"/>
+  <defs><mask id="cut"><rect width="64" height="64" fill="white"/><rect x="28" y="29" width="36" height="35" fill="black"/></mask></defs>
+  <rect x="10" y="14" width="42" height="30" rx="5" fill="none" stroke="#f4f6ef" stroke-width="4" mask="url(#cut)"/>
+  <rect x="30" y="32" width="26" height="18" rx="3" fill="#69e0af"/>
 </svg>
