@@ -178,8 +178,24 @@ Same structure on both platforms; only "decode" and "show" differ.
      in a row with no frame shown in between; `NeedKeyframe` errors don't count. Test:
      `falls_back_after_repeated_sink_errors`.
    - Left for macOS: sleep/wake and long hidden periods (`requiresFlushToResumeDecoding` path is written but
-     untested); fullscreen; several PiPs at once; multi-monitor / different scale factors; hand-drag check
+     untested); several PiPs at once; multi-monitor / different scale factors; hand-drag check
      by the user; maybe `sampleBufferRenderer` when the minimum macOS goes to 14.
+   - **Rounded corners (2026-10-19)**, to match Windows 11: `round_corners` in main.rs makes the NSWindow
+     non-opaque with a clear background and clips the content view (video view + web view) to an 8 pt
+     continuous-curve rounded rect with a black layer background; the shadow follows (AppKit derives it
+     from the window's alpha; `invalidateShadow` after changes). Checked at rest and mid live-resize (held
+     drag): no square flashes, no slivers. Square in fullscreen. Opening size is exact on macOS (480×270
+     asked → 480×270 content), so the non-Windows `set_inner_size` helpers are fine as they are.
+   - **Fullscreen fixed on macOS (was broken):** native fullscreen can't work for our windows, which are
+     "fullscreen auxiliary" (so they float over other apps' fullscreen Spaces); tao's attempt silently
+     failed, left a title bar on the window and dropped it to the normal level. Now `player.js` calls the
+     app's `fullscreen` command (`on: null` toggles), which on macOS uses simple fullscreen (covers the
+     screen in place), raises the window above the menu bar/Dock while fullscreen, restores the level after,
+     and gives the WKWebView first-responder back (tao's style-mask change took it, so keys stopped
+     working). **Shared change:** on Windows/other the command does exactly what `player.js` did before
+     (`set_fullscreen(!is_fullscreen)`), but check F / double-click / Esc there.
+   - Speed control checked on macOS: button 1→1.5→2×, S, `>`/`<` all change the tab's `playbackRate`
+     and the label follows; latency reports at 2× (72–82 ms) match 1×, so the audio delay is unaffected.
 
 Parity checklist: smooth resize, shape kept, no size limit, multi-monitor, several PiPs, bottom-right
 placement, no title bar, ~0.2–0.4 s open, 60 fps, lip sync, same controls/shortcuts/fullscreen,

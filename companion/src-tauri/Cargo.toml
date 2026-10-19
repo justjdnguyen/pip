@@ -16,6 +16,7 @@ base64 = "0.23.1"
 
 [target.'cfg(target_os = "macos")'.dependencies]
 objc2 = "0.6"
+dispatch2 = "0.3"
 objc2-foundation = { version = "0.3", default-features = false, features = ["std", "NSArray", "NSGeometry", "NSString"] }
 # Native video (video/macos.rs): AVSampleBufferDisplayLayer fed with H.264 samples.
 objc2-av-foundation = { version = "0.3", default-features = false, features = [

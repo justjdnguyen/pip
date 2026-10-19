@@ -240,6 +240,113 @@ fn set_inner_position(window: &WebviewWindow, x: f64, y: f64) {
     let _ = window.set_position(LogicalPosition::new(x, y));
 }
 
+/// Fullscreen on/off (`on: null` toggles). Returns the new state.
+#[tauri::command]
+fn fullscreen(window: WebviewWindow, on: Option<bool>) -> bool {
+    set_fullscreen(&window, on)
+}
+
+/// macOS: native fullscreen (a new Space) doesn't work for our windows, which
+/// are "fullscreen auxiliary" so they can float over other apps' fullscreen
+/// Spaces; tao's attempt leaves a title bar and drops always-on-top. Simple
+/// fullscreen instead covers the window's screen in place, raised above the
+/// menu bar and Dock (we're never the active app, so they can't auto-hide).
+#[cfg(target_os = "macos")]
+fn set_fullscreen(window: &WebviewWindow, on: Option<bool>) -> bool {
+    let label = window.label().to_owned();
+    let was = is_fullscreen(window);
+    let want = on.unwrap_or(!was);
+    if want != was {
+        // Window level before fullscreen, to restore after.
+        let level = if want { window_level(window) } else { MAC_FULLSCREEN.lock().unwrap().get(&label).copied() };
+        let res = window.set_simple_fullscreen(want);
+        debug_log("fullscreen", &json!({ "label": label, "on": want, "ok": res.is_ok() }));
+        if res.is_ok() {
+            let mut map = MAC_FULLSCREEN.lock().unwrap();
+            if want {
+                map.insert(label, level.unwrap_or(3));
+            } else {
+                map.remove(&label);
+            }
+        }
+        // tao applies the change later (via the event loop, then the main
+        // dispatch queue) and leaves its own view as first responder, so the
+        // page stops getting keys (Esc, F…). Fix up once it's done.
+        let win = window.clone();
+        let _ = window.run_on_main_thread(move || {
+            dispatch2::DispatchQueue::main().exec_async(move || {
+                const NS_MAIN_MENU_WINDOW_LEVEL: isize = 24;
+                match (is_fullscreen(&win), level) {
+                    (true, _) => set_window_level(&win, NS_MAIN_MENU_WINDOW_LEVEL + 1),
+                    (false, Some(level)) => set_window_level(&win, level),
+                    _ => {}
+                }
+                focus_webview(&win);
+                round_corners(&win);
+            });
+        });
+        return want;
+    }
+    round_corners(window);
+    is_fullscreen(window)
+}
+
+/// Windows in (simple) fullscreen, by label -> window level to restore.
+#[cfg(target_os = "macos")]
+static MAC_FULLSCREEN: Mutex<std::collections::BTreeMap<String, isize>> = Mutex::new(std::collections::BTreeMap::new());
+
+#[cfg(target_os = "macos")]
+fn is_fullscreen(window: &WebviewWindow) -> bool {
+    MAC_FULLSCREEN.lock().unwrap().contains_key(window.label())
+}
+
+#[cfg(target_os = "macos")]
+fn window_level(window: &WebviewWindow) -> Option<isize> {
+    let ptr = window.ns_window().ok()?;
+    // SAFETY: live NSWindow; commands run on the main thread.
+    Some(unsafe { objc2::msg_send![&*(ptr as *const objc2::runtime::AnyObject), level] })
+}
+
+/// Make the window's WKWebView the first responder (so the page gets keys).
+#[cfg(target_os = "macos")]
+fn focus_webview(window: &WebviewWindow) {
+    use objc2::rc::Retained;
+    use objc2::runtime::AnyObject;
+    use objc2::{class, msg_send};
+    let Ok(ptr) = window.ns_window() else { return };
+    // SAFETY: live NSWindow, main thread.
+    unsafe {
+        let ns_window = &*(ptr as *const AnyObject);
+        let content: Option<Retained<AnyObject>> = msg_send![ns_window, contentView];
+        let Some(content) = content else { return };
+        let subviews: Retained<objc2_foundation::NSArray<AnyObject>> = msg_send![&*content, subviews];
+        for view in subviews.iter() {
+            let is_web: bool = msg_send![&*view, isKindOfClass: class!(WKWebView)];
+            if is_web {
+                let _: bool = msg_send![ns_window, makeFirstResponder: &*view];
+                return;
+            }
+        }
+    }
+}
+
+#[cfg(target_os = "macos")]
+fn set_window_level(window: &WebviewWindow, level: isize) {
+    if let Ok(ptr) = window.ns_window() {
+        // SAFETY: as above.
+        unsafe {
+            let _: () = objc2::msg_send![&*(ptr as *const objc2::runtime::AnyObject), setLevel: level];
+        }
+    }
+}
+
+#[cfg(not(target_os = "macos"))]
+fn set_fullscreen(window: &WebviewWindow, on: Option<bool>) -> bool {
+    let want = on.unwrap_or(!window.is_fullscreen().unwrap_or(false));
+    let _ = window.set_fullscreen(want);
+    want
+}
+
 /// Let the window float over other apps' fullscreen Spaces too.
 #[cfg(target_os = "macos")]
 fn float_over_fullscreen_apps(window: &WebviewWindow) {
@@ -259,6 +366,60 @@ fn float_over_fullscreen_apps(window: &WebviewWindow) {
 
 #[cfg(not(target_os = "macos"))]
 fn float_over_fullscreen_apps(_window: &WebviewWindow) {}
+
+/// Corner radius of PiP windows, like Windows 11 gives them.
+#[cfg(target_os = "macos")]
+const CORNER_RADIUS: f64 = 8.0;
+
+/// Round the window's corners (square in fullscreen). The window is made
+/// non-opaque with a clear background, and the content view (which holds both
+/// the native video view and the web view) is clipped to a rounded rect, so
+/// the shadow, which AppKit derives from the window's alpha, follows the curve.
+/// Must run on the main thread.
+#[cfg(target_os = "macos")]
+fn round_corners(window: &WebviewWindow) {
+    use objc2::rc::Retained;
+    use objc2::runtime::AnyObject;
+    use objc2::{class, msg_send};
+    use objc2_quartz_core::{kCACornerCurveContinuous, CALayer};
+    let Ok(ptr) = window.ns_window() else { return };
+    let radius = if is_fullscreen(window) { 0.0 } else { CORNER_RADIUS };
+    // SAFETY: as above; called on the main thread.
+    unsafe {
+        let ns_window = &*(ptr as *const AnyObject);
+        let content: Option<Retained<AnyObject>> = msg_send![ns_window, contentView];
+        let Some(content) = content else { return };
+        let layer: Option<Retained<CALayer>> = msg_send![&*content, layer];
+        let layer = match layer {
+            Some(l) => l,
+            None => {
+                let _: () = msg_send![&*content, setWantsLayer: true];
+                let l: Option<Retained<CALayer>> = msg_send![&*content, layer];
+                let Some(l) = l else { return };
+                l
+            }
+        };
+        if layer.cornerRadius() == radius && layer.masksToBounds() {
+            return;
+        }
+        let opaque: bool = msg_send![ns_window, isOpaque];
+        if opaque {
+            let clear: Retained<AnyObject> = msg_send![class!(NSColor), clearColor];
+            let _: () = msg_send![ns_window, setOpaque: false];
+            let _: () = msg_send![ns_window, setBackgroundColor: &*clear];
+            // Black behind the page in the web path (the window itself is now clear).
+            let black = objc2_core_graphics::CGColor::new_generic_rgb(0.0, 0.0, 0.0, 1.0);
+            layer.setBackgroundColor(Some(&black));
+            layer.setCornerCurve(kCACornerCurveContinuous);
+            layer.setMasksToBounds(true);
+        }
+        layer.setCornerRadius(radius);
+        let _: () = msg_send![ns_window, invalidateShadow];
+    }
+}
+
+#[cfg(not(target_os = "macos"))]
+fn round_corners(_window: &WebviewWindow) {}
 
 /// Show a window without taking keyboard focus from the browser.
 #[cfg(target_os = "macos")]
@@ -335,6 +496,7 @@ fn create_window(app: &AppHandle) -> Option<WebviewWindow> {
         .build()
         .ok()?;
     float_over_fullscreen_apps(&window);
+    round_corners(&window);
     #[cfg(windows)]
     if let Ok(hwnd) = window.hwnd() {
         // Aspect-locked resizing, also in the web path.
@@ -344,13 +506,20 @@ fn create_window(app: &AppHandle) -> Option<WebviewWindow> {
 
     let handle = app.clone();
     let closed_label = label.clone();
+    let resized = window.clone();
     window.on_window_event(move |event| {
+        // Square corners in fullscreen, rounded otherwise.
+        if let WindowEvent::Resized(_) = event {
+            round_corners(&resized);
+        }
         if let WindowEvent::Destroyed = event {
             let state = handle.state::<AppState>();
             let mut s = state.0.lock().unwrap();
             s.channels.remove(&closed_label);
             s.pending.remove(&closed_label);
             s.native.remove(&closed_label);
+            #[cfg(target_os = "macos")]
+            MAC_FULLSCREEN.lock().unwrap().remove(&closed_label);
             if s.spare.as_deref() == Some(closed_label.as_str()) {
                 s.spare = None;
             }
@@ -519,7 +688,7 @@ fn read_stdin(app: AppHandle) {
 fn main() {
     let app = tauri::Builder::default()
         .manage(AppState(Mutex::new(Sessions::default())))
-        .invoke_handler(tauri::generate_handler![attach, send, set_aspect, video_mode])
+        .invoke_handler(tauri::generate_handler![attach, send, set_aspect, video_mode, fullscreen])
         .setup(|app| {
             // No Dock icon or menu bar: this app only ever shows PiP windows.
             #[cfg(target_os = "macos")]
