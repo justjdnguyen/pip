@@ -148,10 +148,8 @@ const captions = {
 };
 
 // ---- window ----
-async function toggleFullscreen() {
-  const fs = await appWindow.isFullscreen();
-  await appWindow.setFullscreen(!fs);
-}
+// Done by the app (see `fullscreen` in main.rs): macOS needs simple fullscreen.
+const toggleFullscreen = () => invoke('fullscreen', { on: null });
 
 const ui = BP.createPlayerUI({
   doc: document,
@@ -169,7 +167,7 @@ const ui = BP.createPlayerUI({
       appWindow.destroy();
     },
     fullscreen: toggleFullscreen,
-    exitFullscreen: () => appWindow.setFullscreen(false),
+    exitFullscreen: () => invoke('fullscreen', { on: false }),
   },
 });
 
