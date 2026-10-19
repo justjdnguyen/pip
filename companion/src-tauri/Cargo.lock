@@ -105,6 +105,7 @@ name = "better-pip-host"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "base64 0.23.1",
  "objc2",
  "objc2-av-foundation",
  "objc2-core-foundation",

@@ -54,8 +54,8 @@ for i in 1...steps {
 post(.leftMouseUp, start)
 rec.waitUntilExit()
 
-// Per frame: bounding box of the green border, then count pure-black pixels
-// just right of / below it (window background showing = a gap).
+// Per frame: bounding box of the green border, then look for black just past
+// it (the black window background showing = a gap).
 let asset = AVURLAsset(url: URL(fileURLWithPath: out))
 let sema = DispatchSemaphore(value: 0)
 Task {
@@ -75,20 +75,27 @@ Task {
     last = sig
     var maxX = -1, maxY = -1
     for yy in stride(from: 0, to: H, by: 2) { for xx in stride(from: 0, to: W, by: 2) {
-      let (r, g, bl) = px(xx, yy); if g > 190 && r < 80 && bl < 130 { maxX = max(maxX, xx); maxY = max(maxY, yy) }
+      let (r, g, bl) = px(xx, yy); if g > 40 && g > 2 * r && g > 2 * bl { maxX = max(maxX, xx); maxY = max(maxY, yy) }
     } }
+    // A gap is a black strip along the edge: count rows (columns) where the
+    // pixels just past the right (bottom) edge are black. The mouse cursor is
+    // also black but only ~20 px tall, so it stays under the threshold.
     var black = 0
+    func isBlack(_ x: Int, _ y: Int) -> Bool { let (r, g, bl) = px(x, y); return r < 6 && g < 6 && bl < 6 }
     if maxX >= 0 {
-      for yy in 0..<min(H, maxY) { for xx in (maxX + 2)..<min(W, maxX + 40) { let (r, g, bl) = px(xx, yy); if r < 6 && g < 6 && bl < 6 { black += 1 } } }
-      for yy in (maxY + 2)..<min(H, maxY + 40) { for xx in 0..<min(W, maxX) { let (r, g, bl) = px(xx, yy); if r < 6 && g < 6 && bl < 6 { black += 1 } } }
+      for yy in 0..<min(H, maxY) where maxX + 4 < W && isBlack(maxX + 4, yy) { black += 1 }
+      for xx in 0..<min(W, maxX) where maxY + 4 < H && isBlack(xx, maxY + 4) { black += 1 }
     }
     CVPixelBufferUnlockBaseAddress(pb, .readOnly)
     frames += 1
-    // A few stray pixels can be the window's rounded corner/shadow; call >200 a gap.
-    if black > 200 { gapFrames += 1 }
+    if black > 60 { gapFrames += 1 }
+    if ProcessInfo.processInfo.environment["VERBOSE"] != nil {
+      let t = CMSampleBufferGetPresentationTimeStamp(sb).seconds
+      print(String(format: "t=%.3f video right/bottom edge %d,%d  black along edge %d px", t, maxX, maxY, black))
+    }
     worst = max(worst, black)
   }
-  print("distinct frames: \(frames), frames with a gap: \(gapFrames), worst gap: \(worst) px  (\(out))")
+  print("distinct frames: \(frames), frames with a gap: \(gapFrames), worst: \(worst) black px along the edge  (\(out))")
   sema.signal()
 }
 sema.wait()

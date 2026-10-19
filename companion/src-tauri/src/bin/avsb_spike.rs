@@ -1,7 +1,7 @@
 // Spike: native video under a transparent web page (macOS).
 //
 // Checks the riskiest part of the native-video plan, using the real sink
-// (video/macos.rs):
+// (video::create_sink, i.e. video/macos.rs):
 //   * an AVSampleBufferDisplayLayer in a layer-hosting NSView placed under the
 //     WKWebView, autoresizing to fill the window;
 //   * the web view transparent, so the page's empty areas show the video and
@@ -24,10 +24,8 @@ fn main() {
     eprintln!("avsb_spike is macOS-only");
 }
 
-#[cfg(target_os = "macos")]
-#[path = "../video/macos.rs"]
-#[allow(dead_code)]
-mod sink;
+#[path = "../video/mod.rs"]
+mod video;
 
 #[cfg(target_os = "macos")]
 fn main() {
@@ -36,7 +34,7 @@ fn main() {
 
 #[cfg(target_os = "macos")]
 mod mac {
-    use super::sink::{create_sink, Frame, NeedKeyframe, StreamConfig, VideoSink};
+    use super::video::{create_sink, Frame, NeedKeyframe, StreamConfig, VideoSink};
     use objc2::msg_send;
     use objc2::runtime::AnyObject;
     use objc2_core_foundation::{kCFBooleanFalse, kCFBooleanTrue, CFDictionary, CFNumber, CFRetained, CFString, CFType};

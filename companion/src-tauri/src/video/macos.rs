@@ -34,54 +34,8 @@ use objc2_core_media::{
 use std::ffi::c_void;
 use std::ptr::{self, NonNull};
 
-// ---- Shared contract --------------------------------------------------------
-// Local copy of the interface in video/mod.rs (on the windows-native-video branch).
-// At merge: delete this block, `use super::{Frame, StreamConfig, VideoSink};`,
-// and have mod.rs's macOS `create_sink` call `macos::create_sink`.
-
-pub struct StreamConfig {
-    pub codec: String,
-    pub width: u32,
-    pub height: u32,
-}
-
-pub struct Frame<'a> {
-    /// One access unit, Annex B (start codes); keyframes carry SPS/PPS.
-    pub data: &'a [u8],
-    pub key: bool,
-    pub ts_us: i64,
-    /// false = decode only (macOS: DoNotDisplay).
-    pub display: bool,
-}
-
-/// `Send` because the pacing core calls `submit` from its own thread.
-pub trait VideoSink: Send {
-    /// New stream or new resolution. Rebuild the format description on the next keyframe.
-    fn configure(&mut self, cfg: &StreamConfig) -> Result<()>;
-    /// Called by the pacing core at the moment the frame should appear.
-    fn submit(&mut self, frame: &Frame) -> Result<()>;
-    /// Drop everything queued (seek / stream restart).
-    fn flush(&mut self);
-}
-// -----------------------------------------------------------------------------
-
-/// `submit` error meaning "send me a keyframe" (not "give up on native video"):
-/// the sink was flushed or reconfigured and can only restart at a keyframe.
-/// The core can check with `err.downcast_ref::<NeedKeyframe>()`.
-#[derive(Debug)]
-pub struct NeedKeyframe;
-
-impl std::fmt::Display for NeedKeyframe {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        f.write_str("waiting for a keyframe")
-    }
-}
-impl std::error::Error for NeedKeyframe {}
-
-/// Create the sink for a PiP window. Must be called on the main thread.
-pub fn create_sink(window: &tauri::WebviewWindow) -> Result<Box<dyn VideoSink>> {
-    Ok(Box::new(MacSink::new(window)?))
-}
+use super::annexb::{nal_type, nal_units};
+use super::{Frame, NeedKeyframe, StreamConfig, VideoSink};
 
 const NS_WINDOW_BELOW: isize = -1;
 const NS_VIEW_WIDTH_SIZABLE: usize = 1 << 1;
@@ -108,7 +62,8 @@ pub struct MacSink {
 unsafe impl Send for MacSink {}
 
 impl MacSink {
-    fn new(window: &tauri::WebviewWindow) -> Result<Self> {
+    /// Must be called on the main thread.
+    pub fn new(window: &tauri::WebviewWindow) -> Result<Self> {
         MainThreadMarker::new().context("create_sink must run on the main thread")?;
         let ns_window = window.ns_window().map_err(|e| anyhow!("no NSWindow: {e}"))? as *const AnyObject;
         // SAFETY: ns_window() is this window's live NSWindow, and we're on the main thread.
@@ -288,8 +243,8 @@ impl VideoSink for MacSink {
         let mut sps: Option<&[u8]> = None;
         let mut pps: Option<&[u8]> = None;
         self.avcc.clear();
-        for nal in annex_b_nals(frame.data) {
-            match nal[0] & 0x1f {
+        for nal in nal_units(frame.data) {
+            match nal_type(nal) {
                 7 => sps = sps.or(Some(nal)),
                 8 => pps = pps.or(Some(nal)),
                 9 => {} // access unit delimiter: not needed in AVCC samples
@@ -341,49 +296,5 @@ impl Drop for MacSink {
                 let _: () = msg_send![&*parts.0, removeFromSuperview];
             }
         });
-    }
-}
-
-/// Split an Annex B byte stream into NAL units (without start codes).
-pub fn annex_b_nals(data: &[u8]) -> impl Iterator<Item = &[u8]> {
-    let mut pos = find_start(data, 0);
-    std::iter::from_fn(move || {
-        let (_, body) = pos?;
-        let next = find_start(data, body);
-        let mut end = next.map_or(data.len(), |(sc, _)| sc);
-        pos = next;
-        // Trailing zero bytes belong to the next start code / padding.
-        while end > body && data[end - 1] == 0 {
-            end -= 1;
-        }
-        Some(&data[body..end])
-    })
-    .filter(|nal| !nal.is_empty())
-}
-
-/// Next start code (00 00 01) at or after `from`: (start-code offset, NAL offset).
-fn find_start(data: &[u8], from: usize) -> Option<(usize, usize)> {
-    let mut i = from;
-    while i + 3 <= data.len() {
-        if data[i + 2] > 1 {
-            i += 3;
-        } else if data[i] == 0 && data[i + 1] == 0 && data[i + 2] == 1 {
-            return Some((i, i + 3));
-        } else {
-            i += 1;
-        }
-    }
-    None
-}
-
-#[cfg(test)]
-mod tests {
-    use super::annex_b_nals;
-
-    #[test]
-    fn splits_annex_b() {
-        let data = [0, 0, 0, 1, 0x67, 1, 2, 0, 0, 1, 0x68, 3, 0, 0, 0, 1, 0x65, 4, 5, 0];
-        let nals: Vec<&[u8]> = annex_b_nals(&data).collect();
-        assert_eq!(nals, vec![&[0x67, 1, 2][..], &[0x68, 3][..], &[0x65, 4, 5][..]]);
     }
 }
