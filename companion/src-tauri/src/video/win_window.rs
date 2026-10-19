@@ -79,21 +79,23 @@ pub fn set_aspect(hwnd: HWND, width: f64, height: f64) {
 /// window's position. (Tauri's set_size is off by a title bar's height for our
 /// borderless, transparent windows: 480×270 came out 480×300.)
 pub fn set_client_size(hwnd: HWND, width: i32, height: i32) {
-    let (mut wr, mut cr) = (RECT::default(), RECT::default());
+    let flags = SWP_NOMOVE | SWP_NOZORDER | SWP_NOACTIVATE;
     unsafe {
-        let _ = GetWindowRect(hwnd, &mut wr);
-        let _ = GetClientRect(hwnd, &mut cr);
-        let fw = (wr.right - wr.left) - (cr.right - cr.left);
-        let fh = (wr.bottom - wr.top) - (cr.bottom - cr.top);
-        let _ = SetWindowPos(
-            hwnd,
-            None,
-            0,
-            0,
-            width + fw,
-            height + fh,
-            SWP_NOMOVE | SWP_NOZORDER | SWP_NOACTIVATE,
-        );
+        // A new window's client rect can still include the title bar it was
+        // created with, until its frame is recalculated: refresh it first.
+        let _ = SetWindowPos(hwnd, None, 0, 0, 0, 0, flags | SWP_NOSIZE | SWP_FRAMECHANGED);
+        // Then size by the measured border, and once more in case it moved.
+        for _ in 0..2 {
+            let (mut wr, mut cr) = (RECT::default(), RECT::default());
+            let _ = GetWindowRect(hwnd, &mut wr);
+            let _ = GetClientRect(hwnd, &mut cr);
+            if cr.right - cr.left == width && cr.bottom - cr.top == height {
+                return;
+            }
+            let fw = (wr.right - wr.left) - (cr.right - cr.left);
+            let fh = (wr.bottom - wr.top) - (cr.bottom - cr.top);
+            let _ = SetWindowPos(hwnd, None, 0, 0, width + fw, height + fh, flags);
+        }
     }
 }
 

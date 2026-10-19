@@ -28,9 +28,11 @@ fn main() {
                 .transparent(true)
                 .no_redirection_bitmap(true)
                 .skip_taskbar(true)
+                .visible_on_all_workspaces(true)
+                .focused(false)
                 .visible(false)
                 .build()?;
-            let report = |label: &str, w: &tauri::WebviewWindow| {
+            fn report(label: &str, w: &tauri::WebviewWindow) {
                 let hwnd = HWND(w.hwnd().unwrap().0 as _);
                 let (mut c, mut r) = (RECT::default(), RECT::default());
                 unsafe {
@@ -47,27 +49,36 @@ fn main() {
                     r.right - r.left,
                     r.bottom - r.top
                 );
-            };
+            }
             report("built", &w);
-            w.set_size(LogicalSize::new(480.0, 270.0))?;
-            report("set_size", &w);
-            video::win_window::set_client_size(HWND(w.hwnd()?.0 as _), 480, 270);
-            report("set_client_size", &w);
-            video::win_window::set_client_pos(HWND(w.hwnd()?.0 as _), 1000, 500);
-            let mut p = windows::Win32::Foundation::POINT::default();
-            unsafe { let _ = windows::Win32::Graphics::Gdi::ClientToScreen(HWND(w.hwnd()?.0 as _), &mut p); }
-            println!("client origin {},{} (want 1000,500)", p.x, p.y);
-            w.show()?;
-            report("shown", &w);
-            let handle = app.handle().clone();
+            // Replay main.rs open_window on a hidden, already-loaded spare window.
+            let w2 = w.clone();
             std::thread::spawn(move || {
                 std::thread::sleep(std::time::Duration::from_millis(1500));
-                let w2 = w.clone();
-                let _ = w.run_on_main_thread(move || {
-                    report("later", &w2);
+                let w3 = w2.clone();
+                let _ = w2.run_on_main_thread(move || {
+                    let hwnd = HWND(w3.hwnd().unwrap().0 as _);
+                    let _ = w3.set_title("probe title");
+                    report("set_title", &w3);
+                    video::win_window::set_client_size(hwnd, 480, 270);
+                    report("set_client_size", &w3);
+                    video::win_window::set_client_pos(hwnd, 1000, 500);
+                    report("set_client_pos", &w3);
+                    unsafe {
+                        let _ = windows::Win32::UI::WindowsAndMessaging::ShowWindow(
+                            hwnd,
+                            windows::Win32::UI::WindowsAndMessaging::SW_SHOWNOACTIVATE,
+                        );
+                    }
+                    report("shown", &w3);
                 });
+                for ms in [50u64, 500, 1500] {
+                    std::thread::sleep(std::time::Duration::from_millis(ms));
+                    let w4 = w2.clone();
+                    let _ = w2.run_on_main_thread(move || report(&format!("+{ms}ms"), &w4));
+                }
                 std::thread::sleep(std::time::Duration::from_millis(300));
-                handle.exit(0);
+                { use tauri::Manager; w2.app_handle().exit(0); }
             });
             Ok(())
         })
