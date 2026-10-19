@@ -26,6 +26,9 @@ Verify that the download came from this project's release and compare its SHA-25
 with `SHA256SUMS.txt` if needed (`Get-FileHash <download> -Algorithm SHA256`). Managed
 devices may prohibit unsigned apps or developer-mode extensions. Do not disable
 organization security policies. Install WebView2 Runtime if it is missing.
+The companion also uses Windows Media Foundation. Windows N editions need Microsoft's
+[Media Feature Pack](https://support.microsoft.com/en-us/windows/experience/platform-variants/media-feature-pack-for-windows-n).
+An error about `mfplat.dll` usually means those OS media components are missing.
 
 To uninstall: close the browser/PiP windows, extract the same companion ZIP if needed,
 and run `Uninstall.cmd`. Remove the extension from the browser separately.

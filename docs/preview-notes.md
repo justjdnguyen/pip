@@ -14,6 +14,7 @@ builds are compile-tested in CI and need user testing on real hardware.
 
 Please report reproducible problems with your OS, browser, video site, and whether
 the companion was installed. Remove personal information from any logs or screenshots.
+Windows N editions also need Microsoft's Media Feature Pack for Media Foundation.
 
 ### Dependency source
 
