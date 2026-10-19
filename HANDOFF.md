@@ -105,10 +105,42 @@ Same structure on both platforms; only "decode" and "show" differ.
      Chrome (`Software\Google\Chrome\NativeMessagingHosts\com.betterpip.host`), Edge
      (`Software\Microsoft\Edge\...`), Chromium (`Software\Chromium\...`), Brave
      (`Software\BraveSoftware\Brave-Browser\...`) and Helium (**check** which key Helium reads).
-3. **macOS** (later, on the Mac): `AVSampleBufferDisplayLayer` in a layer-backed NSView under the
-   WKWebView (autoresizing), fed compressed samples (Annex B → AVCC, format description from SPS/PPS;
-   skipped frames get `DoNotDisplay`, shown ones `DisplayImmediately`); transparent webview needs
-   `macOSPrivateApi: true` + tauri feature `macos-private-api`.
+3. **macOS**: `AVSampleBufferDisplayLayer` in a layer-backed NSView under the WKWebView (autoresizing),
+   fed compressed samples (Annex B → AVCC, format description from SPS/PPS; skipped frames get
+   `DoNotDisplay`, shown ones `DisplayImmediately`).
+   - **Spike done (2026-10-19), it works:** `companion/src-tauri/src/bin/avsb_spike.rs` + `companion/ui/spike.html`
+     (`cargo run --bin avsb_spike`, `BP_SPIKE_SECONDS=n` to auto-quit, `BP_SPIKE_SWITCH=n` to alternate 16:9/4:3
+     streams every n s, `BP_SPIKE_DUMP=1` to print the view tree). Unlike the Windows spike it uses the real
+     sink, `src/video/macos.rs` (pulled in with `#[path]`), fed by a VideoToolbox encoder making a test
+     pattern, converted to Annex B as the extension sends it. Layout: tao's NSWindow → `WryWebViewParent`
+     (content view) → [our layer-hosting NSView whose layer *is* the AVSampleBufferDisplayLayer
+     (`videoGravity = resizeAspect`, black background), added `positioned: NSWindowBelow relativeTo: nil`,
+     autoresizing width+height] + `WryWebView`. Verified by screenshot: the page's transparent areas show
+     the video, the label / 40%-red panel / control gradient blend on top. Decode-only frames
+     (`DoNotDisplay`, 1 in 30 in the spike) and stream reconfigure (new format description on the next
+     keyframe) work with no layer errors.
+     RESIZE_RESULT
+   - Gotchas:
+     - **No private API needed.** wry sets the WKWebView's `drawsBackground = false` whenever the window
+       has a `background_color` (main.rs already sets black), so the page is transparent without
+       `macOSPrivateApi` / `transparent(true)`. tauri.conf.json is unchanged.
+     - `screencapture -l <window>` leaves out the WKWebView's content (it's drawn out of process), so it
+       shows only the video. Capture a screen region instead (`screencapture -R x,y,w,h`).
+     - The layer's `enqueueSampleBuffer`/`flush`/`status` are deprecated since macOS 14 (use
+       `sampleBufferRenderer`), but that needs 14.0 and we support 13.3; they still work on 15.
+     - Layer-hosting order matters: `setLayer:` before `setWantsLayer: YES`, then AppKit keeps the layer's
+       frame equal to the view bounds (no implicit animation, no extra code on resize).
+   - `video/macos.rs` contract notes: it carries a local copy of the `VideoSink` contract (same as
+     `video/mod.rs` on windows-native-video, with `: Send`); at merge delete the copy, `use super::…`, and
+     have mod.rs's macOS `create_sink` call `macos::create_sink`. `submit` returns a `NeedKeyframe` error
+     (check with `downcast_ref`) when it can only restart at a keyframe (start, after `flush`/`configure`,
+     after `requiresFlushToResumeDecoding`); other errors (layer `status == failed`) mean fall back.
+     Not wired into main.rs yet (no `mod video` on this branch).
+   - Left for macOS: wire into the shared core (create the sink when the page asks for `'native'`, on the
+     main thread; drop it when the window closes, which removes the view); `first-frame` (could use the
+     layer's `readyForDisplay`); check behaviour when the window is hidden as the spare and re-shown, and
+     after sleep/wake (`requiresFlushToResumeDecoding`); fullscreen; several PiPs at once; measure latency
+     vs. the web path; `tools/drag-resize.swift` against the real app.
 
 Parity checklist: smooth resize, shape kept, no size limit, multi-monitor, several PiPs, bottom-right
 placement, no title bar, ~0.2–0.4 s open, 60 fps, lip sync, same controls/shortcuts/fullscreen,
