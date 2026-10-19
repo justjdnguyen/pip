@@ -78,6 +78,8 @@ struct Pacer {
     sink: Box<dyn VideoSink>,
     events: Box<dyn Events>,
     epoch: Instant,
+    #[cfg(test)]
+    test_now: Option<f64>,
     configured: bool,
     failed: bool,
     waiting_for_key: bool,
@@ -108,6 +110,8 @@ impl Pacer {
             sink,
             events,
             epoch: Instant::now(),
+            #[cfg(test)]
+            test_now: None,
             configured: false,
             failed: false,
             waiting_for_key: true,
@@ -125,6 +129,10 @@ impl Pacer {
     }
 
     fn now(&self) -> f64 {
+        #[cfg(test)]
+        if let Some(now) = self.test_now {
+            return now;
+        }
         self.epoch.elapsed().as_secs_f64() * 1000.0
     }
 
@@ -316,21 +324,27 @@ mod tests {
     #[test]
     fn paces_skips_and_waits_for_keyframes() {
         let log = Arc::new(Log::default());
-        let v = NativeVideo::start(Box::new(Sink(log.clone())), Box::new(Ev(log.clone())));
-        v.send(Input::Config(StreamConfig { codec: "avc1".into(), width: 2, height: 2 }));
-        v.send(chunk(0, false)); // dropped: no keyframe yet
-        v.send(chunk(16, true));
-        v.send(chunk(33, false));
-        std::thread::sleep(Duration::from_millis(150));
+        let mut p = Pacer::new(Box::new(Sink(log.clone())), Box::new(Ev(log.clone())));
+        p.test_now = Some(0.0);
+        p.on_input(Input::Config(StreamConfig { codec: "avc1".into(), width: 2, height: 2 }));
+        p.on_input(chunk(0, false)); // dropped: no keyframe yet
+        p.on_input(chunk(16, true));
+        p.on_input(chunk(33, false));
+        p.show_due();
+        assert_eq!(log.0.lock().unwrap().join(" "), "K");
+        // Advance a controlled clock instead of depending on OS thread scheduling.
+        p.test_now = Some(24.0);
+        p.show_due();
+        assert_eq!(log.0.lock().unwrap().join(" "), "K 16 F");
+        p.test_now = Some(41.0);
+        p.show_due();
+        assert_eq!(log.0.lock().unwrap().join(" "), "K 16 F 33");
         // Two frames arriving together after a stall: both decoded, the older one hidden.
-        v.send(chunk(50, false));
-        v.send(chunk(66, false));
-        std::thread::sleep(Duration::from_millis(250));
-        let got = log.0.lock().unwrap().join(" ");
-        assert!(got.starts_with("K 16 F 33"), "{got}");
-        // 50 is hidden if both were read together; the thread may also wake between the sends.
-        assert!(got.ends_with("50- 66") || got.ends_with("50 66"), "{got}");
-        assert!(!got.contains(" 0 "), "{got}");
+        p.test_now = Some(150.0);
+        p.on_input(chunk(50, false));
+        p.on_input(chunk(66, false));
+        p.show_due();
+        assert_eq!(log.0.lock().unwrap().join(" "), "K 16 F 33 50- 66");
     }
 
     struct BrokenSink;
@@ -347,11 +361,13 @@ mod tests {
     #[test]
     fn falls_back_after_repeated_sink_errors() {
         let log = Arc::new(Log::default());
-        let v = NativeVideo::start(Box::new(BrokenSink), Box::new(Ev(log.clone())));
-        v.send(Input::Config(StreamConfig { codec: "avc1".into(), width: 2, height: 2 }));
+        let mut p = Pacer::new(Box::new(BrokenSink), Box::new(Ev(log.clone())));
+        p.test_now = Some(0.0);
+        p.on_input(Input::Config(StreamConfig { codec: "avc1".into(), width: 2, height: 2 }));
         for i in 0..5 {
-            v.send(chunk(i * 16, true));
-            std::thread::sleep(Duration::from_millis(80));
+            p.on_input(chunk(i * 16, true));
+            p.test_now = Some((i + 1) as f64 * 80.0);
+            p.show_due();
         }
         let got = log.0.lock().unwrap().join(" | ");
         // Start + two restarts, then it gives up (and ignores the rest).
