@@ -82,6 +82,17 @@ fn main() {
                 }
             });
 
+            // BP_SPIKE_FULLSCREEN=ms: go fullscreen after ms, and log window events.
+            window.on_window_event(|e| eprintln!("[event] {e:?}"));
+            if let Some(ms) = std::env::var("BP_SPIKE_FULLSCREEN").ok().and_then(|s| s.parse().ok()) {
+                let w = window.clone();
+                std::thread::spawn(move || {
+                    std::thread::sleep(Duration::from_millis(ms));
+                    eprintln!("[spike] set_fullscreen(true) -> {:?}", w.set_fullscreen(true));
+                    std::thread::sleep(Duration::from_millis(1500));
+                    eprintln!("[spike] fullscreen={:?} visible={:?} size={:?}", w.is_fullscreen(), w.is_visible(), w.inner_size());
+                });
+            }
             if let Some(secs) = std::env::var("BP_SPIKE_SECONDS").ok().and_then(|s| s.parse().ok()) {
                 let handle = app.handle().clone();
                 std::thread::spawn(move || {

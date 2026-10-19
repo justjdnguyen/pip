@@ -344,7 +344,20 @@ fn create_window(app: &AppHandle) -> Option<WebviewWindow> {
 
     let handle = app.clone();
     let closed_label = label.clone();
+    #[cfg(windows)]
+    let shown = window.clone();
     window.on_window_event(move |event| {
+        // We show windows with ShowWindow(SW_SHOWNOACTIVATE) so they don't take
+        // focus, which Tauri doesn't see: it still thinks the window is hidden,
+        // and going fullscreen re-applies that and hides it. Once the user has
+        // clicked into the window (it has focus anyway), tell Tauri it's shown.
+        #[cfg(windows)]
+        if let WindowEvent::Focused(true) = event {
+            let _ = shown.show();
+        }
+        if !matches!(event, WindowEvent::Moved(_) | WindowEvent::Resized(_)) {
+            debug_log("window", &json!({ "label": closed_label, "event": format!("{event:?}") }));
+        }
         if let WindowEvent::Destroyed = event {
             let state = handle.state::<AppState>();
             let mut s = state.0.lock().unwrap();
@@ -417,6 +430,28 @@ fn open_window(app: &AppHandle, msg: &Value) {
             set_inner_position(&window, pos.x + size.width - width - margin, pos.y + size.height - height - margin);
         }
         show_without_focus(&window);
+        // BP_DEBUG_FULLSCREEN_MS=n: go fullscreen n ms after opening (for testing).
+        if let Some(ms) = std::env::var("BP_DEBUG_FULLSCREEN_MS").ok().and_then(|s| s.parse::<u64>().ok()) {
+            let w = window.clone();
+            std::thread::spawn(move || {
+                std::thread::sleep(std::time::Duration::from_millis(ms));
+                // Same path as the user: the page's fullscreen button, in and out again.
+                for i in 0..6 {
+                    if i % 3 == 0 {
+                        let r = w.eval("document.querySelector('button.fs').click()");
+                        debug_log("debug", &json!({ "fullscreen-click": format!("{r:?}") }));
+                    }
+                    std::thread::sleep(std::time::Duration::from_millis(700));
+                    debug_log("debug", &json!({
+                        "fullscreen": format!("{:?}", w.is_fullscreen()),
+                        "visible": format!("{:?}", w.is_visible()),
+                        "minimized": format!("{:?}", w.is_minimized()),
+                        "pos": format!("{:?}", w.outer_position()),
+                        "size": format!("{:?}", w.inner_size()),
+                    }));
+                }
+            });
+        }
         deliver_to_label(&handle, &label, json!({ "type": "assigned" }));
 
         // Get the next spare ready.

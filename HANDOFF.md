@@ -119,6 +119,15 @@ Same structure on both platforms; only "decode" and "show" differ.
      **Not yet verified:** the web fallback on WebView2 (`BP_WEB_VIDEO=1` runs failed to start the test page —
      environment flake while the PC was in use, not diagnosed), color accuracy vs the tab (BT.709 assumed),
      multi-monitor/DPI changes, several PiPs at once, fullscreen.
+   - Windows gotchas found later (2026-10-19): Tauri's `set_size` is off by a title bar for these windows, and a
+     new hidden window's client rect is stale until its frame is recalculated (`win_window::set_client_size`
+     handles both; `cargo run --bin size_probe` replays the open sequence). Windows are shown with
+     `SW_SHOWNOACTIVATE`, which Tauri doesn't see, so it re-hid them on fullscreen; `main.rs` calls `show()` on the
+     first focus to sync it. `BP_DEBUG_FULLSCREEN_MS=n` clicks the page's fullscreen button n ms after opening (and
+     again to exit), logging the window state. Rebuilding while the browser is connected fails (it relaunches the
+     app instantly): rename `target/release/better-pip-host.exe` aside first. From the agent's PowerShell,
+     `tools/startup-timing.mjs` sometimes never starts the app; running it in `Start-Job` works. YouTube ads can
+     also break it; a local page with a canvas-backed `<video>` avoids them.
    - `tools/install-host-win.ps1` done: manifest in `%LOCALAPPDATA%\BetterPiP`, HKCU keys for Chrome, Chromium
      (**Helium reads `Software\Chromium`**, checked in its chrome.dll), Edge, Brave, Vivaldi. `-Uninstall` removes them.
    - Shared contract (`src/video/mod.rs`): `StreamConfig`, `Frame { data, key, ts_us, display }`, trait

@@ -12,7 +12,7 @@ mod video;
 
 #[cfg(windows)]
 fn main() {
-    use tauri::{LogicalSize, WebviewUrl, WebviewWindowBuilder};
+    use tauri::{WebviewUrl, WebviewWindowBuilder};
     use windows::Win32::Foundation::{HWND, RECT};
     use windows::Win32::UI::WindowsAndMessaging::{GetClientRect, GetWindowRect};
 
