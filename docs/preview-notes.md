@@ -1,3 +1,14 @@
+### What's new in preview.3
+
+- New Better PiP logo across the browser extension and Windows/macOS companion icons.
+- Rewritten README with clearer downloads, installation steps, and keyboard shortcuts.
+- Documented the Media Feature Pack requirement for Windows N editions.
+
+This release refreshes branding and documentation; playback behavior is unchanged
+from preview.2.
+
+### Installation and preview limitations
+
 Early preview of Better PiP: native Picture-in-Picture windows for Windows and macOS,
 plus a Chromium browser extension with captions, playback controls, and speed shortcuts.
 

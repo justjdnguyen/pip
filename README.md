@@ -5,7 +5,7 @@
 Picture-in-Picture for Chromium browsers, with native floating windows on Windows
 and macOS. Keep a video in view while you work, read, or switch tabs.
 
-**[Download the preview](https://github.com/justjdnguyen/pip/releases/tag/v0.1.0-preview.2)**
+**[Download the preview](https://github.com/justjdnguyen/pip/releases/tag/v0.1.0-preview.3)**
 &nbsp; [Installation guide](docs/INSTALL.md) &nbsp; [Report a bug](https://github.com/justjdnguyen/pip/issues)
 
 ## A window that follows you
@@ -33,7 +33,7 @@ Install the browser extension first, then the companion for native windows.
 ### Browser extension
 
 1. Download and extract the **extension ZIP** from the
-   [preview release](https://github.com/justjdnguyen/pip/releases/tag/v0.1.0-preview.2)
+   [preview release](https://github.com/justjdnguyen/pip/releases/tag/v0.1.0-preview.3)
    into a folder you will keep.
 2. Open `chrome://extensions`, turn on **Developer mode**, and click **Load unpacked**.
    Select the folder containing `manifest.json`.
