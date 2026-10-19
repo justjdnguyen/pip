@@ -1,10 +1,13 @@
-// Drags a window's bottom-right corner quickly while recording the screen, then
+// Drags a window's corner quickly while recording the screen, then
 // reports frames where the window background shows past the video's edge.
 // Made for the native-video spike (avsb_spike draws a green border at the
 // video's edge and has a black window background), but works for any window
 // whose video has a bright green border.
 //
 // Usage: swift tools/drag-resize.swift <owner-name> [dx=300] [dy=169] [duration-s=0.6] [out.mov]
+// Positive dx/dy drag the bottom-right corner out; negative ones the top-left
+// (for a window already in the bottom-right of the screen). The gap check
+// only looks at the right/bottom edges, so use it with positive dx/dy.
 // Needs Accessibility (to post mouse events) and Screen Recording permission.
 import AVFoundation
 import CoreGraphics
@@ -27,7 +30,8 @@ guard let win = info.first(where: { ($0[kCGWindowOwnerName as String] as? String
 print("window \(x),\(y) \(w)x\(h)")
 
 // Record the area the window will cover (plus a margin).
-let rect = "\(Int(x)),\(Int(y)),\(Int(w + dx + 40)),\(Int(h + dy + 40))"
+let rx = dx < 0 ? x + dx - 40 : x, ry = dy < 0 ? y + dy - 40 : y
+let rect = "\(Int(rx)),\(Int(ry)),\(Int(w + abs(dx) + 40)),\(Int(h + abs(dy) + 40))"
 try? FileManager.default.removeItem(atPath: out)
 let rec = Process()
 rec.executableURL = URL(fileURLWithPath: "/usr/sbin/screencapture")
@@ -37,7 +41,7 @@ Thread.sleep(forTimeInterval: 1.0)
 
 // Drag from just inside the corner.
 let src = CGEventSource(stateID: .hidSystemState)
-let start = CGPoint(x: x + w - 3, y: y + h - 3)
+let start = CGPoint(x: dx < 0 ? x + 3 : x + w - 3, y: dy < 0 ? y + 3 : y + h - 3)
 func post(_ type: CGEventType, _ p: CGPoint) {
   CGEvent(mouseEventSource: src, mouseType: type, mouseCursorPosition: p, mouseButton: .left)?.post(tap: .cghidEventTap)
 }

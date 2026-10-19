@@ -153,6 +153,7 @@ fn start_native_video(app: &AppHandle, window: &WebviewWindow) {
             let events = WindowEvents { app: app.clone(), label: window.label().to_owned() };
             let native = video::core::NativeVideo::start(sink, Box::new(events));
             app.state::<AppState>().0.lock().unwrap().native.insert(window.label().to_owned(), native);
+            debug_log("native", &json!({ "label": window.label(), "started": true }));
         }
         Err(e) => debug_log("native", &json!({ "label": window.label(), "unavailable": format!("{e:#}") })),
     }

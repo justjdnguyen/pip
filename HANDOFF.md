@@ -141,7 +141,7 @@ Same structure on both platforms; only "decode" and "show" differ.
    - **Spike done (2026-10-19), it works:** `companion/src-tauri/src/bin/avsb_spike.rs` + `companion/ui/spike.html`
      (`cargo run --bin avsb_spike`, `BP_SPIKE_SECONDS=n` to auto-quit, `BP_SPIKE_SWITCH=n` to alternate 16:9/4:3
      streams every n s, `BP_SPIKE_DUMP=1` to print the view tree). Unlike the Windows spike it uses the real
-     sink, `src/video/macos.rs` (pulled in with `#[path]`), fed by a VideoToolbox encoder making a test
+     sink (`video::create_sink` → `src/video/macos.rs`, with `video/mod.rs` pulled in by `#[path]`), fed by a VideoToolbox encoder making a test
      pattern, converted to Annex B as the extension sends it. Layout: tao's NSWindow → `WryWebViewParent`
      (content view) → [our layer-hosting NSView whose layer *is* the AVSampleBufferDisplayLayer
      (`videoGravity = resizeAspect`, black background), added `positioned: NSWindowBelow relativeTo: nil`,
@@ -149,7 +149,18 @@ Same structure on both platforms; only "decode" and "show" differ.
      the video, the label / 40%-red panel / control gradient blend on top. Decode-only frames
      (`DoNotDisplay`, 1 in 30 in the spike) and stream reconfigure (new format description on the next
      keyframe) work with no layer errors.
-     RESIZE_RESULT
+     4:3 streams are pillarboxed correctly in the 16:9 window. Resize: `tools/drag-resize.swift`
+     (scripted corner drag + screen recording; finds the video's green border in each frame and looks for
+     black window background past it) found **no gaps** in 0.6 s, 0.3 s and 0.15 s out-and-back drags of
+     +400×225 pt; mid-drag frames show the video flush with the window edge while the page's controls lag
+     by about a frame (expected: only they are web-drawn).
+   - **In the app (2026-10-19, Helium/YouTube, release build):** every window, the hidden spare included,
+     gets a native sink (`BP_DEBUG_LOG` shows `native {"started":true}`). First frame 0.16–0.21 s after
+     Alt+P with a warm tab (0.5–1.8 s for the first PiP in a tab, mostly waiting for the tab's encoder
+     config); latency reports 56–79 ms (web path in the same setup: ~106 ms). Mid-drag frames of the real
+     window: video always fills the window. `BP_WEB_VIDEO=1` still gives the web path (checked).
+     The drag tool's gap count only means something with the spike's green border; real video (green
+     grass!) confuses it, so check real-app drags by looking at the frames.
    - Gotchas:
      - **No private API needed.** wry sets the WKWebView's `drawsBackground = false` whenever the window
        has a `background_color` (main.rs already sets black), so the page is transparent without
@@ -160,17 +171,15 @@ Same structure on both platforms; only "decode" and "show" differ.
        `sampleBufferRenderer`), but that needs 14.0 and we support 13.3; they still work on 15.
      - Layer-hosting order matters: `setLayer:` before `setWantsLayer: YES`, then AppKit keeps the layer's
        frame equal to the view bounds (no implicit animation, no extra code on resize).
-   - `video/macos.rs` contract notes: it carries a local copy of the `VideoSink` contract (same as
-     `video/mod.rs` on windows-native-video, with `: Send`); at merge delete the copy, `use super::…`, and
-     have mod.rs's macOS `create_sink` call `macos::create_sink`. `submit` returns a `NeedKeyframe` error
-     (check with `downcast_ref`) when it can only restart at a keyframe (start, after `flush`/`configure`,
-     after `requiresFlushToResumeDecoding`); other errors (layer `status == failed`) mean fall back.
-     Not wired into main.rs yet (no `mod video` on this branch).
-   - Left for macOS: wire into the shared core (create the sink when the page asks for `'native'`, on the
-     main thread; drop it when the window closes, which removes the view); `first-frame` (could use the
-     layer's `readyForDisplay`); check behaviour when the window is hidden as the spare and re-shown, and
-     after sleep/wake (`requiresFlushToResumeDecoding`); fullscreen; several PiPs at once; measure latency
-     vs. the web path; `tools/drag-resize.swift` against the real app.
+   - Error semantics: `submit` returns the shared `video::NeedKeyframe` error when it can only restart at
+     a keyframe (after `flush`/`configure`, or the layer's `requiresFlushToResumeDecoding`, e.g. after the
+     decoder was taken away); a layer `status == failed` is a real error. **Shared change (Windows,
+     please pick up):** `core.rs` now falls back to the web path after `MAX_SINK_ERRORS` (3) sink errors
+     in a row with no frame shown in between; `NeedKeyframe` errors don't count. Test:
+     `falls_back_after_repeated_sink_errors`.
+   - Left for macOS: sleep/wake and long hidden periods (`requiresFlushToResumeDecoding` path is written but
+     untested); fullscreen; several PiPs at once; multi-monitor / different scale factors; hand-drag check
+     by the user; maybe `sampleBufferRenderer` when the minimum macOS goes to 14.
 
 Parity checklist: smooth resize, shape kept, no size limit, multi-monitor, several PiPs, bottom-right
 placement, no title bar, ~0.2–0.4 s open, 60 fps, lip sync, same controls/shortcuts/fullscreen,
