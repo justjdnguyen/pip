@@ -9,6 +9,12 @@
 pub mod annexb;
 #[cfg(windows)]
 pub mod win_decoder;
+#[cfg(windows)]
+pub mod win_sink;
+#[cfg(windows)]
+pub mod win_test_encoder;
+#[cfg(windows)]
+pub mod win_window;
 
 pub struct StreamConfig {
     pub codec: String,
@@ -25,11 +31,24 @@ pub struct Frame<'a> {
     pub display: bool,
 }
 
-pub trait VideoSink {
+/// Runs on the window's video thread (hence `Send`).
+pub trait VideoSink: Send {
     /// New stream or new resolution.
     fn configure(&mut self, cfg: &StreamConfig) -> anyhow::Result<()>;
     /// Called by the pacing core at the moment the frame should appear.
     fn submit(&mut self, frame: &Frame) -> anyhow::Result<()>;
     /// Drop everything queued (seek / stream restart).
     fn flush(&mut self);
+}
+
+/// Set up native video for a PiP window. Call on the main (UI) thread.
+#[cfg(windows)]
+pub fn create_sink(window: &tauri::WebviewWindow) -> anyhow::Result<Box<dyn VideoSink>> {
+    let hwnd = ::windows::Win32::Foundation::HWND(window.hwnd()?.0 as _);
+    Ok(Box::new(win_sink::WinSink::new(hwnd)?))
+}
+
+#[cfg(not(any(windows, target_os = "macos")))]
+pub fn create_sink(_window: &tauri::WebviewWindow) -> anyhow::Result<Box<dyn VideoSink>> {
+    anyhow::bail!("native video isn't supported on this platform")
 }
