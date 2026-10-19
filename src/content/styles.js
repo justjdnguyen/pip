@@ -110,6 +110,12 @@ button.rate.changed { color: #7dd3fc; }
 
 @media (max-width: 440px) { .vol { display: none; } }
 @media (max-width: 320px) { .time, .live-badge { display: none !important; } .back5, .fwd5 { display: none; } }
+@media (max-width: 200px) {
+  .row { gap: 4px; }
+  .right { gap: 0; }
+  .pip { --btn: 26px; }
+  button.rate { padding: 0; }
+}
 @media (max-height: 150px) { .top { display: none; } }
 `;
 

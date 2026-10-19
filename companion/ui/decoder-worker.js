@@ -1,13 +1,17 @@
 'use strict';
 
-// Decodes the incoming video and feeds frames, evenly paced, into a
-// VideoTrackGenerator. The page plays that track in a <video> element, which
-// WebKit presents natively at full frame rate. (Drawing to a canvas instead
-// gets throttled to ~30fps because this app is never the active app.)
-
-const generator = new VideoTrackGenerator();
-const writer = generator.writable.getWriter();
-self.postMessage({ type: 'track', track: generator.track }, [generator.track]);
+// Decode and pace frames in a worker. WebKit can present a generated video
+// track; WebView2 lacks that worker API, so draw into a transferred canvas.
+let writer = null;
+let canvas = null;
+let canvasContext = null;
+if (typeof VideoTrackGenerator === 'function') {
+  const generator = new VideoTrackGenerator();
+  writer = generator.writable.getWriter();
+  self.postMessage({ type: 'track', track: generator.track }, [generator.track]);
+} else {
+  self.postMessage({ type: 'canvas' });
+}
 
 let decoder = null;
 let decoderConfig = null;
@@ -137,9 +141,23 @@ function show() {
     frame = queued.shift();
   }
   if (!frame) return;
+  if (!writer && !canvasContext) {
+    frame.close();
+    return;
+  }
   trackLatency(frame);
-  // write() takes ownership of the frame.
-  writer.write(frame).catch(() => {});
+  if (writer) {
+    // write() takes ownership of the frame.
+    writer.write(frame).catch(() => {});
+  } else {
+    try {
+      if (canvas.width !== frame.displayWidth) canvas.width = frame.displayWidth;
+      if (canvas.height !== frame.displayHeight) canvas.height = frame.displayHeight;
+      canvasContext.drawImage(frame, 0, 0);
+    } finally {
+      frame.close();
+    }
+  }
   perf.shown++;
   if (firstFrame) {
     firstFrame = false;
@@ -162,11 +180,15 @@ setInterval(() => {
     latencyMs: latency && Math.round(latency),
     decodedLagMs: Math.round(perf.decodedLag / Math.max(1, perf.decoded)),
     decodeQueue: decoder?.decodeQueueSize,
+    size: canvas ? `${canvas.width}x${canvas.height}` : undefined,
   });
   Object.keys(perf).forEach((k) => (perf[k] = 0));
 }, 2000);
 
 self.onmessage = ({ data: msg }) => {
-  if (msg.type === 'chunk') decodeChunk(msg);
+  if (msg.type === 'canvas') {
+    canvas = msg.canvas;
+    canvasContext = canvas.getContext('2d', { alpha: false, desynchronized: true });
+  } else if (msg.type === 'chunk') decodeChunk(msg);
   else if (msg.type === 'config') configure(msg);
 };

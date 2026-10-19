@@ -21,7 +21,7 @@ BP.adoptCss(
   document,
   BP.PIP_CSS +
     `
-  .stage video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; }
+  .stage video, .stage canvas { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; }
   .waiting { position: absolute; inset: 0; display: grid; place-items: center; color: #aaa; font-size: 13px; }
   html.native, html.native body, html.native .stage { background: transparent !important; }
   html.native .stage video { display: none !important; }
@@ -235,6 +235,14 @@ function startWorker() {
 
 function onWorkerMessage({ data: msg }) {
   switch (msg.type) {
+    case 'canvas': {
+      const canvas = document.createElement('canvas');
+      videoEl.style.display = 'none';
+      ui.stage.insertBefore(canvas, waiting.isConnected ? waiting : null);
+      const offscreen = canvas.transferControlToOffscreen();
+      worker.postMessage({ type: 'canvas', canvas: offscreen }, [offscreen]);
+      break;
+    }
     case 'track':
       videoEl.srcObject = new MediaStream([msg.track]);
       videoEl.play().catch(() => {});
@@ -249,7 +257,7 @@ function onWorkerMessage({ data: msg }) {
       send({ type: 'keyframe' });
       break;
     case 'stats':
-      send({ ...msg, window: `${innerWidth}x${innerHeight}`, size: `${videoEl.videoWidth}x${videoEl.videoHeight}` });
+      send({ ...msg, window: `${innerWidth}x${innerHeight}`, size: msg.size || `${videoEl.videoWidth}x${videoEl.videoHeight}` });
       break;
     case 'error':
       send({ type: 'jserror', message: msg.message });

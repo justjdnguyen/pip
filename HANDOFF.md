@@ -3,6 +3,24 @@
 Where the project stands and what's next, for whoever (human or agent) picks it up.
 Written 2026-10-19 when moving development from the Mac to the Windows PC.
 
+## Latest integration (2026-10-19)
+
+- `companion-app` now combines Windows fullscreen fix `ce8c0a7` and macOS corners/fullscreen
+  fix `26cdfbb` (merge `17f4d3e`). The window event handler keeps both the Windows visibility
+  synchronization and the Mac corner updates; the page uses the shared `fullscreen` command.
+- Windows web fallback now uses a transferred OffscreenCanvas when the worker has no
+  `VideoTrackGenerator`. WebKit keeps its generated-track path. Tested with H.264 in the real
+  WebView2 app, both with `BP_WEB_VIDEO=1` and after intentionally failing native configuration:
+  frames appeared, playback stats reported 160x90, and there were no unexpected script errors.
+- Compact controls fit at 160 px width again, including the speed button. Browser layout checks
+  passed from 160 through 480 px at 0.25x, 1x, 1.5x and 2x; the button cycles 1 -> 1.5 -> 2 -> 1.
+  The generated shared UI copy is synchronized with `src/content/`.
+- Windows validation: three Rust unit tests, `cargo check --all-targets`, debug/release builds,
+  actual H.264 canvas playback and native-to-web recovery, and the page's fullscreen button
+  entering 2560x1440 and restoring 480x270 at the original position, visible throughout.
+- Mac-specific code was reviewed but not rerun during this integration. Previous Mac runtime
+  results below still apply; multi-monitor/DPI, several PiPs, and Mac sleep/wake remain untested.
+
 ## What it is
 
 Firefox-style Picture-in-Picture for Chromium browsers (target: Helium, also Chrome/Edge/Brave).
@@ -216,7 +234,7 @@ fallback to the web path if native fails.
    Node.js. WebView2 runtime ships with Windows 11. (All present on the Windows PC as of 2026-10-19:
    Rust 1.92 MSVC, VS 2022 + Build Tools, SDK 10.0.26100, Node 25, WebView2 155.)
 2. `node tools/sync-ui.mjs`, then `cd companion/src-tauri && cargo build --release`.
-3. Register the host with the browser (install script still to be written; see above).
+3. Register the host with the browser: `powershell -ExecutionPolicy Bypass -File tools/install-host-win.ps1`.
 4. Load the extension unpacked from the repo root (`chrome://extensions` → Developer mode → Load unpacked).
 5. After reloading the extension, reload video tabs (old tabs show "Better PiP was updated…").
 

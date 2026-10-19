@@ -417,11 +417,6 @@ BP.createPlayerUI = ({ doc, win, media, captions, actions, closeTitle = 'Close (
         cycleRate();
         break;
       case '>':
-      case '.':
-        if (e.key === '.' && !e.shiftKey) {
-          handled = false;
-          break;
-        }
         stepRate(1);
         break;
       case '<':
