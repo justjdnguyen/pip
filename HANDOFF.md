@@ -94,6 +94,17 @@ Same structure on both platforms; only "decode" and "show" differ.
      Gotchas: Tauri examples crash with 0xC0000139 (no comctl32 v6 manifest), so spikes go in `src/bin/`;
      data: URLs need the `webview-data-url` feature, so test pages go in `ui/`.
    - Decode: Media Foundation H.264 decoder MFT with a D3D11 device manager, low-latency mode, NV12 out.
+     **Done (2026-10-19, branch `windows-native-video`):** `src/video/win_decoder.rs` (`Decoder::new/decode/flush`,
+     `create_device` with multithread protection on). Tested by `cargo run --bin mf_decode_test`: encodes a moving
+     checkerboard with the MF H.264 encoder (no test files needed), decodes it, checks pixels. Results at 1280×720,
+     854×480, 1920×1080: every picture comes out on the same `decode` call it went in (0 frames of delay), decode
+     call ~0.1 ms median (the first call ~20 ms: decoder setup on the first keyframe), output is a 7-slice NV12
+     texture array with `D3D11_BIND_DECODER`, luma matches within 2/255, and the visible size comes from the
+     display aperture (854 inside an 864-wide texture, 1080 inside 1088). Frames hold a decoder surface while
+     alive, so present and drop them promptly.
+   - Shared contract (`src/video/mod.rs`): `StreamConfig`, `Frame { data, key, ts_us, display }`, trait
+     `VideoSink { configure, submit, flush }` + per-OS `create_sink(&WebviewWindow)`. The Mac thread
+     (branch `macos-native-video`) implements it in `video/macos.rs`.
    - Show: ID3D11VideoProcessor blit NV12 → BGRA swap chain sized to the video; on `WM_SIZE` only update
      the DComp visual's scale transform + `Commit()` (synchronous with DWM → smooth resize).
    - Window subclass (`SetWindowSubclass`): `WM_SIZING` for aspect lock (macOS has this already via
