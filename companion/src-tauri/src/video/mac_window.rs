@@ -128,7 +128,8 @@ pub(crate) static MAC_FULLSCREEN: std::sync::Mutex<std::collections::BTreeMap<St
     std::sync::Mutex::new(std::collections::BTreeMap::new());
 
 #[cfg(target_os = "macos")]
-fn is_fullscreen(window: &tauri::WebviewWindow) -> bool {
+#[allow(dead_code)]
+pub(crate) fn is_fullscreen(window: &tauri::WebviewWindow) -> bool {
     MAC_FULLSCREEN.lock().unwrap().contains_key(window.label())
 }
 

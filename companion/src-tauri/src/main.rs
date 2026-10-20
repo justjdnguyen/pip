@@ -15,7 +15,7 @@
 mod video;
 
 #[cfg(target_os = "macos")]
-use video::mac_window::MAC_FULLSCREEN;
+use video::mac_window::{is_fullscreen, MAC_FULLSCREEN};
 
 use base64::Engine;
 use serde_json::{json, Value};
@@ -302,11 +302,6 @@ fn set_fullscreen(window: &WebviewWindow, on: Option<bool>) -> bool {
     }
     round_corners(window);
     is_fullscreen(window)
-}
-
-#[cfg(target_os = "macos")]
-fn is_fullscreen(window: &WebviewWindow) -> bool {
-    MAC_FULLSCREEN.lock().unwrap().contains_key(window.label())
 }
 
 #[cfg(target_os = "macos")]

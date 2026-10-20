@@ -185,16 +185,19 @@ const waiting = BP.h(document, 'div', { class: 'waiting', text: 'Connecting…' 
 ui.stage.append(videoEl, waiting);
 videoEl.addEventListener('resize', () => setAspect(videoEl.videoWidth, videoEl.videoHeight));
 
+const isMac = /Mac/.test(navigator.platform);
 // Wider resize targets inside the client area, where the native border is
 // difficult to grab. Keep controls clickable even inside a corner target.
+// Mac edges are wider so our anchored resize wins over AppKit's border resize.
+const EDGE = isMac ? 24 : 8, CORNER = isMac ? 32 : 24;
 function resizeDirection(e) {
   if (resizingDisabled
       || e.target.closest('button, .slider')) return null;
   const x = e.clientX, y = e.clientY;
-  const left = x < 24, right = x >= innerWidth - 24;
-  const top = y < 24, bottom = y >= innerHeight - 24;
-  const nearLeft = x < 32, nearRight = x >= innerWidth - 32;
-  const nearTop = y < 32, nearBottom = y >= innerHeight - 32;
+  const left = x < EDGE, right = x >= innerWidth - EDGE;
+  const top = y < EDGE, bottom = y >= innerHeight - EDGE;
+  const nearLeft = x < CORNER, nearRight = x >= innerWidth - CORNER;
+  const nearTop = y < CORNER, nearBottom = y >= innerHeight - CORNER;
   if (nearTop && nearLeft) return ['NorthWest', 'nwse-resize'];
   if (nearTop && nearRight) return ['NorthEast', 'nesw-resize'];
   if (nearBottom && nearLeft) return ['SouthWest', 'nesw-resize'];
@@ -210,7 +213,6 @@ ui.root.addEventListener('mousemove', (e) => {
 });
 ui.root.addEventListener('mouseleave', () => { ui.root.style.cursor = ''; });
 
-const isMac = /Mac/.test(navigator.platform);
 function startWindowGesture(direction = null) {
   if (isMac) {
     invoke('start_window_gesture', { direction }).catch((error) => send({ type: 'jserror', message: `window gesture: ${error}` }));

@@ -7,12 +7,10 @@
 - YouTube captions continue updating in background tabs. PiP excludes clipped
   caption scrollback and updates when captions scroll or disappear.
 
-Mac snapping was exercised live on an Intel Retina Mac with two native PiPs:
-visible screen edges, hold and breakthrough, PiP-to-PiP contact, and anchored
-aspect-preserving resize. Multiple monitors and mixed display scaling remain
-untested. Caption tests and the browser layout fixture pass on Mac; full
-background-tab YouTube timing still needs a live extension retest. Update both
-the extension and companion, then refresh your video tabs.
+Mac snapping was validated live on an Intel Mac with a single Retina display.
+Multiple monitors, mixed display scaling, and Apple Silicon remain untested.
+Background-tab YouTube caption timing still needs a live retest. Update both the
+extension and companion, then refresh your video tabs.
 
 ### Installation and preview limitations
 
@@ -27,8 +25,8 @@ The extension is not in the Chrome Web Store yet.
 Preview companions have no trusted publisher signature and are not Apple-notarized.
 Read README.md and docs/INSTALL.md in the repository before installation. Verify
 downloads against SHA256SUMS.txt. Protected video, multiple monitors/DPI, more
-than two simultaneous PiPs, and Mac sleep/wake need broader testing. Intel Mac
-checks and playback were run on real hardware; Apple Silicon remains untested.
+than two simultaneous PiPs, and Mac sleep/wake need broader testing. Builds and
+checks run on local devices; the Intel Mac build is tested on real hardware.
 
 Please report reproducible problems with your OS, browser, video site, and whether
 the companion was installed. Remove personal information from any logs or screenshots.

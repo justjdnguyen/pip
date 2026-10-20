@@ -89,7 +89,7 @@ extension, but behavior varies by browser, site, and codec.
 - Browser-only Document PiP permits one window at a time and caps its size.
 - Multiple PiPs, mixed-DPI monitors, and Mac sleep/wake need broader real-world testing.
 - Native playback uses H.264. Web fallback may use more CPU or feel less smooth.
-- Intel Mac builds are tested in CI; playback still needs testing on more real machines.
+- Intel Mac builds are tested on real hardware; Apple Silicon is untested.
 - Updates are manual: install the new companion, replace/reload the extension,
   and refresh your video tabs.
 
