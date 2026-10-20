@@ -15,6 +15,11 @@ struct Rect { x: f64, y: f64, w: f64, h: f64 }
 impl Rect {
     fn right(self) -> f64 { self.x + self.w }
     fn top(self) -> f64 { self.y + self.h }
+    fn near(self, other: Self) -> bool {
+        // AppKit rounds fractional point sizes when it applies setFrame.
+        [self.x - other.x, self.y - other.y, self.w - other.w, self.h - other.h]
+            .iter().all(|delta| delta.abs() < 0.75)
+    }
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -112,7 +117,20 @@ impl Gesture {
 }
 
 #[cfg(target_os = "macos")]
+#[allow(unused_imports)] // Spike binaries include this module without starting gestures.
 pub use platform::start;
+
+/// Windows in simple fullscreen, by label -> original window level. Kept
+/// here so the standalone video spikes can compile the shared window module.
+#[cfg(target_os = "macos")]
+#[allow(dead_code)]
+pub(crate) static MAC_FULLSCREEN: std::sync::Mutex<std::collections::BTreeMap<String, isize>> =
+    std::sync::Mutex::new(std::collections::BTreeMap::new());
+
+#[cfg(target_os = "macos")]
+fn is_fullscreen(window: &tauri::WebviewWindow) -> bool {
+    MAC_FULLSCREEN.lock().unwrap().contains_key(window.label())
+}
 
 #[cfg(target_os = "macos")]
 mod platform {
@@ -137,11 +155,12 @@ mod platform {
         let screens: Retained<NSArray<AnyObject>> = msg_send![class!(NSScreen), screens];
         let mut monitors = Vec::new();
         for screen in screens.iter() {
-            monitors.push(rect(msg_send![&*screen, frame]));
+            // The menu bar and Dock reduce visibleFrame. Including the full
+            // frame adds a second snap target behind those reserved areas.
             monitors.push(rect(msg_send![&*screen, visibleFrame]));
         }
         let windows = window.app_handle().webview_windows().values().filter_map(|other| {
-            if other.label() == window.label() || crate::is_fullscreen(other) { return None; }
+            if other.label() == window.label() || is_fullscreen(other) { return None; }
             let ptr = other.ns_window().ok()?;
             let native = &*(ptr as *const AnyObject);
             let visible: bool = msg_send![native, isVisible];
@@ -157,7 +176,7 @@ mod platform {
         if ACTIVE.lock().unwrap().get(state.window.label()) != Some(&state.token) { return; }
         let keep_tracking = unsafe {
             let buttons: usize = msg_send![class!(NSEvent), pressedMouseButtons];
-            buttons & 1 != 0 && !crate::is_fullscreen(&state.window) && state.window.ns_window().is_ok()
+            buttons & 1 != 0 && !is_fullscreen(&state.window) && state.window.ns_window().is_ok()
         };
         if !keep_tracking {
             ACTIVE.lock().unwrap().remove(state.window.label());
@@ -172,7 +191,7 @@ mod platform {
             if let Ok(ptr) = state.window.ns_window() {
                 let native = &*(ptr as *const AnyObject);
                 let current: NSRect = msg_send![native, frame];
-                if rect(current) != frame {
+                if !rect(current).near(frame) {
                     let frame = NSRect::new(NSPoint::new(frame.x, frame.y), NSSize::new(frame.w, frame.h));
                     let _: () = msg_send![native, setFrame: frame, display: true];
                 }
@@ -186,7 +205,7 @@ mod platform {
         let edge = direction.map(|d| Edge::parse(d).ok_or_else(|| "Invalid resize direction".to_owned())).transpose()?;
         let win = window.clone();
         window.run_on_main_thread(move || {
-            if crate::is_fullscreen(&win) { return; }
+            if is_fullscreen(&win) { return; }
             let Ok(ptr) = win.ns_window() else { return };
             unsafe {
                 let native = &*(ptr as *const AnyObject);

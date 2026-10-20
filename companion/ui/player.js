@@ -191,10 +191,10 @@ function resizeDirection(e) {
   if (resizingDisabled
       || e.target.closest('button, .slider')) return null;
   const x = e.clientX, y = e.clientY;
-  const left = x < 8, right = x >= innerWidth - 8;
-  const top = y < 8, bottom = y >= innerHeight - 8;
-  const nearLeft = x < 24, nearRight = x >= innerWidth - 24;
-  const nearTop = y < 24, nearBottom = y >= innerHeight - 24;
+  const left = x < 24, right = x >= innerWidth - 24;
+  const top = y < 24, bottom = y >= innerHeight - 24;
+  const nearLeft = x < 32, nearRight = x >= innerWidth - 32;
+  const nearTop = y < 32, nearBottom = y >= innerHeight - 32;
   if (nearTop && nearLeft) return ['NorthWest', 'nwse-resize'];
   if (nearTop && nearRight) return ['NorthEast', 'nesw-resize'];
   if (nearBottom && nearLeft) return ['SouthWest', 'nesw-resize'];

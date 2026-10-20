@@ -14,6 +14,9 @@
 
 mod video;
 
+#[cfg(target_os = "macos")]
+use video::mac_window::MAC_FULLSCREEN;
+
 use base64::Engine;
 use serde_json::{json, Value};
 use std::collections::HashMap;
@@ -300,10 +303,6 @@ fn set_fullscreen(window: &WebviewWindow, on: Option<bool>) -> bool {
     round_corners(window);
     is_fullscreen(window)
 }
-
-/// Windows in (simple) fullscreen, by label -> window level to restore.
-#[cfg(target_os = "macos")]
-static MAC_FULLSCREEN: Mutex<std::collections::BTreeMap<String, isize>> = Mutex::new(std::collections::BTreeMap::new());
 
 #[cfg(target_os = "macos")]
 fn is_fullscreen(window: &WebviewWindow) -> bool {
