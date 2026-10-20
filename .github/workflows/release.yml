@@ -36,6 +36,7 @@ jobs:
       - name: Select stable Rust
         run: rustup default stable
       - run: node tools/check-release.mjs
+      - run: node --test tools/test-youtube-captions.mjs
       - run: cargo test --release --locked --manifest-path companion/src-tauri/Cargo.toml --bin better-pip-host
       - run: cargo build --release --locked --manifest-path companion/src-tauri/Cargo.toml --bin better-pip-host
       - name: Dependency license notices

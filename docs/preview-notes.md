@@ -1,11 +1,17 @@
-### What's new in preview.3
+### What's new in preview.4
 
-- New Better PiP logo across the browser extension and Windows/macOS companion icons.
-- Rewritten README with clearer downloads, installation steps, and keyboard shortcuts.
-- Documented the Media Feature Pack requirement for Windows N editions.
+- Monitor-edge and PiP-to-PiP snapping on Windows and macOS, with a brief hold
+  and continued-drag release.
+- Resize snapping keeps the opposite edge anchored and the video in proportion.
+  Wider edge and corner targets make resizing easier.
+- YouTube captions continue updating in background tabs. PiP excludes clipped
+  caption scrollback and updates when captions scroll or disappear.
 
-This release refreshes branding and documentation; playback behavior is unchanged
-from preview.2.
+Mac snapping is newly implemented. Its geometry is covered by automated tests;
+live Mac drag/resize behavior, multiple monitors, and mixed display scaling still
+need hardware validation. Full background-tab PiP caption timing also needs a
+live extension retest. Update both the extension and companion, then refresh
+your video tabs.
 
 ### Installation and preview limitations
 

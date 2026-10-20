@@ -5,7 +5,7 @@
 Picture-in-Picture for Chromium browsers, with native floating windows on Windows
 and macOS. Keep a video in view while you work, read, or switch tabs.
 
-**[Download the preview](https://github.com/justjdnguyen/pip/releases/tag/v0.1.0-preview.3)**
+**[Download the preview](https://github.com/justjdnguyen/pip/releases/tag/v0.1.0-preview.4)**
 &nbsp; [Installation guide](docs/INSTALL.md) &nbsp; [Report a bug](https://github.com/justjdnguyen/pip/issues)
 
 ## A window that follows you
@@ -15,6 +15,9 @@ resize it without losing its shape, and keep the controls within reach.
 
 - **Make room.** Native video follows the window as you resize. The companion
   supports multiple windows and avoids Document PiP's maximum-size restriction.
+- **Line things up.** On Windows and macOS, drag near a monitor edge or another PiP to
+  snap into place, or resize toward an edge while keeping the opposite side
+  anchored. Keep dragging past the edge to break through the brief hold.
 - **Set the pace.** Click the speed button or press `S` to cycle **1×, 1.5×, 2×**.
   Use `<` and `>` for finer steps.
 - **Keep control.** Scrub, skip, adjust volume, toggle captions, or go fullscreen.
@@ -33,7 +36,7 @@ Install the browser extension first, then the companion for native windows.
 ### Browser extension
 
 1. Download and extract the **extension ZIP** from the
-   [preview release](https://github.com/justjdnguyen/pip/releases/tag/v0.1.0-preview.3)
+   [preview release](https://github.com/justjdnguyen/pip/releases/tag/v0.1.0-preview.4)
    into a folder you will keep.
 2. Open `chrome://extensions`, turn on **Developer mode**, and click **Load unpacked**.
    Select the folder containing `manifest.json`.

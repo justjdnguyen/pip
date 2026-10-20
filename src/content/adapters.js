@@ -128,20 +128,66 @@ const youtubeAdapter = {
     let lastKey = '';
     let lastEnabled = null;
 
+    // Roll-up captions retain old lines above an overflow:hidden viewport.
+    // textContent includes that history, even though YouTube no longer shows
+    // it. Read the clipped text, including partially visible wrapped lines.
+    const visibleText = (line, clip) => {
+      const overlaps = (r) => r.width > 0 && r.height > 0 && r.bottom > clip.top + 0.5 && r.top < clip.bottom - 0.5;
+      const inside = (r) => r.top >= clip.top - 0.5 && r.bottom <= clip.bottom + 0.5;
+      const rect = line.getBoundingClientRect();
+      if (!overlaps(rect)) return '';
+      if (inside(rect)) return line.textContent;
+
+      // A visual-line element can itself wrap onto several physical rows.
+      // Use ranges only at the clipping boundary so hidden rows of that same
+      // element don't leak into PiP either. No changes to YouTube's DOM.
+      const range = document.createRange();
+      const read = (node) => {
+        if (node.nodeType !== 3) return [...node.childNodes].map(read).join('');
+        const slice = (start, end) => {
+          range.setStart(node, start);
+          range.setEnd(node, end);
+          const rects = [...range.getClientRects()];
+          if (!rects.some(overlaps)) return '';
+          if (rects.every(inside) || end - start <= 1) return node.textContent.slice(start, end);
+          const mid = Math.floor((start + end) / 2);
+          return slice(start, mid) + slice(mid, end);
+        };
+        return node.textContent ? slice(0, node.textContent.length) : '';
+      };
+      return read(line);
+    };
+
     const readLines = () => {
       const lines = [];
       for (const win of player.querySelectorAll('.caption-window')) {
+        const style = getComputedStyle(win);
+        if (style.display === 'none' || style.visibility === 'hidden') continue;
+        const clip = /hidden|clip|scroll|auto/.test(style.overflowY) ? win.getBoundingClientRect() : null;
         const visual = win.querySelectorAll('.caption-visual-line');
         if (visual.length) {
-          for (const line of visual) lines.push(line.textContent);
+          for (const line of visual) lines.push(clip ? visibleText(line, clip) : line.textContent);
         } else {
-          lines.push(win.textContent);
+          lines.push(clip ? visibleText(win, clip) : win.textContent);
         }
       }
       return lines.map((l) => l.replace(/\s+/g, ' ').trim()).filter(Boolean);
     };
 
     const enabled = () => button()?.getAttribute('aria-pressed') === 'true';
+
+    // YouTube's DOM observer alone cannot help when its own renderer stops
+    // in a hidden tab. Advance its queued animation work with media events,
+    // which continue during background playback (also after seeks).
+    const tick = () => {
+      if (document.hidden && enabled()) {
+        document.dispatchEvent(new Event('better-pip-caption-tick'));
+      }
+      check();
+    };
+    video.addEventListener('timeupdate', tick);
+    video.addEventListener('seeked', tick);
+    document.addEventListener('visibilitychange', tick);
 
     const check = () => {
       const lines = enabled() ? readLines() : [];
@@ -162,7 +208,7 @@ const youtubeAdapter = {
       childList: true,
       characterData: true,
       attributes: true,
-      attributeFilter: ['aria-pressed'],
+      attributeFilter: ['aria-pressed', 'style', 'class', 'hidden'],
     });
 
     return {
@@ -182,6 +228,9 @@ const youtubeAdapter = {
       },
       destroy() {
         observer.disconnect();
+        video.removeEventListener('timeupdate', tick);
+        video.removeEventListener('seeked', tick);
+        document.removeEventListener('visibilitychange', tick);
       },
     };
   },

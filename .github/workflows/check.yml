@@ -1,7 +1,7 @@
 name: Checks
 on:
   push:
-    branches: [companion-app]
+    branches: [main, companion-app]
   pull_request:
 permissions:
   contents: read
@@ -17,6 +17,7 @@ jobs:
         with:
           node-version: 22
       - run: node tools/check-release.mjs
+      - run: node --test tools/test-youtube-captions.mjs
       - name: Scan repository history for secrets
         shell: bash
         run: |

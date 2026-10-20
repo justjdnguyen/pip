@@ -149,7 +149,12 @@ const captions = {
 
 // ---- window ----
 // Done by the app (see `fullscreen` in main.rs): macOS needs simple fullscreen.
-const toggleFullscreen = () => invoke('fullscreen', { on: null });
+let resizingDisabled = false;
+const setFullscreen = async (on) => {
+  resizingDisabled = await invoke('fullscreen', { on });
+  return resizingDisabled;
+};
+const toggleFullscreen = () => setFullscreen(null);
 
 const ui = BP.createPlayerUI({
   doc: document,
@@ -167,7 +172,7 @@ const ui = BP.createPlayerUI({
       appWindow.destroy();
     },
     fullscreen: toggleFullscreen,
-    exitFullscreen: () => invoke('fullscreen', { on: false }),
+    exitFullscreen: () => setFullscreen(false),
   },
 });
 
@@ -180,11 +185,57 @@ const waiting = BP.h(document, 'div', { class: 'waiting', text: 'Connecting…' 
 ui.stage.append(videoEl, waiting);
 videoEl.addEventListener('resize', () => setAspect(videoEl.videoWidth, videoEl.videoHeight));
 
+// Wider resize targets inside the client area, where the native border is
+// difficult to grab. Keep controls clickable even inside a corner target.
+function resizeDirection(e) {
+  if (resizingDisabled
+      || e.target.closest('button, .slider')) return null;
+  const x = e.clientX, y = e.clientY;
+  const left = x < 8, right = x >= innerWidth - 8;
+  const top = y < 8, bottom = y >= innerHeight - 8;
+  const nearLeft = x < 24, nearRight = x >= innerWidth - 24;
+  const nearTop = y < 24, nearBottom = y >= innerHeight - 24;
+  if (nearTop && nearLeft) return ['NorthWest', 'nwse-resize'];
+  if (nearTop && nearRight) return ['NorthEast', 'nesw-resize'];
+  if (nearBottom && nearLeft) return ['SouthWest', 'nesw-resize'];
+  if (nearBottom && nearRight) return ['SouthEast', 'nwse-resize'];
+  if (left) return ['West', 'ew-resize'];
+  if (right) return ['East', 'ew-resize'];
+  if (top) return ['North', 'ns-resize'];
+  if (bottom) return ['South', 'ns-resize'];
+  return null;
+}
+ui.root.addEventListener('mousemove', (e) => {
+  ui.root.style.cursor = resizeDirection(e)?.[1] || '';
+});
+ui.root.addEventListener('mouseleave', () => { ui.root.style.cursor = ''; });
+
+const isMac = /Mac/.test(navigator.platform);
+function startWindowGesture(direction = null) {
+  if (isMac) {
+    invoke('start_window_gesture', { direction }).catch((error) => send({ type: 'jserror', message: `window gesture: ${error}` }));
+  } else if (direction) {
+    appWindow.startResizeDragging(direction);
+  } else {
+    appWindow.startDragging();
+  }
+}
+
 // Drag the window by the video; double-click for fullscreen.
 ui.root.addEventListener('mousedown', (e) => {
-  if (e.button !== 0 || e.target.closest('.top, .bottom')) return;
+  if (e.button !== 0) return;
+  const resize = resizeDirection(e);
+  if (resize) {
+    e.preventDefault();
+    startWindowGesture(resize[0]);
+    return;
+  }
+  if (e.target.closest('.top, .bottom')) return;
   if (e.detail === 2) toggleFullscreen();
-  else appWindow.startDragging();
+  else if (!resizingDisabled) {
+    e.preventDefault();
+    startWindowGesture();
+  }
 });
 
 let aspectKey = '';

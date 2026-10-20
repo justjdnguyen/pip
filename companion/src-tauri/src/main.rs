@@ -165,6 +165,16 @@ fn set_aspect(window: WebviewWindow, width: f64, height: f64) {
     set_aspect_ratio(&window, width, height);
 }
 
+/// Mac gestures share the same edge resistance as Windows. AppKit's native
+/// drag loop cannot be adjusted from Tauri's after-the-fact window events.
+#[tauri::command]
+fn start_window_gesture(window: WebviewWindow, direction: Option<String>) -> Result<(), String> {
+    #[cfg(target_os = "macos")]
+    return video::mac_window::start(&window, direction.as_deref());
+    #[cfg(not(target_os = "macos"))]
+    { let _ = (window, direction); Err("Custom gestures are only used on macOS".into()) }
+}
+
 #[cfg(target_os = "macos")]
 fn set_aspect_ratio(window: &WebviewWindow, width: f64, height: f64) {
     use objc2::msg_send;
@@ -723,7 +733,7 @@ fn read_stdin(app: AppHandle) {
 fn main() {
     let app = tauri::Builder::default()
         .manage(AppState(Mutex::new(Sessions::default())))
-        .invoke_handler(tauri::generate_handler![attach, send, set_aspect, video_mode, fullscreen])
+        .invoke_handler(tauri::generate_handler![attach, send, set_aspect, video_mode, fullscreen, start_window_gesture])
         .setup(|app| {
             // No Dock icon or menu bar: this app only ever shows PiP windows.
             #[cfg(target_os = "macos")]

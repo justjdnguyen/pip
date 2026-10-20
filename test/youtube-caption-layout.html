@@ -1,0 +1,94 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>YouTube caption clipping regression</title>
+<style>
+  body { font: 18px/1.5 sans-serif; margin: 40px; }
+  #player { margin: 20px 0; padding: 20px; background: #eee; width: 320px; }
+  .caption-window { overflow: hidden; height: 40px; width: 300px; }
+  .caption-visual-line { display: block; font: 16px/20px monospace; }
+  .captions-text { display: block; }
+  #mirror { min-height: 40px; white-space: pre-line; }
+</style>
+<h1>Caption expiry and clipping</h1>
+<p>Old rows remain in the source DOM. Only the visible rows should reach PiP.</p>
+<div id="player">
+  <button class="ytp-subtitles-button" aria-pressed="true">CC</button>
+  <div class="caption-window"><span class="captions-text"></span></div>
+</div>
+<p>Mirrored caption:</p><pre id="mirror"></pre>
+<pre id="results">Running…</pre>
+<script>var BP = {};</script>
+<script src="../src/content/adapters.js"></script>
+<script>
+window.captionLayoutResult = (async () => {
+  const player = document.querySelector('#player');
+  const win = player.querySelector('.caption-window');
+  const text = win.querySelector('.captions-text');
+  const video = document.createElement('video');
+  const mirror = document.querySelector('#mirror');
+  const results = document.querySelector('#results');
+  const passed = [];
+  let latest = [];
+  let captions;
+  const settle = () => new Promise(resolve => setTimeout(resolve, 40));
+  const expect = (name, expected) => {
+    if (JSON.stringify(latest) !== JSON.stringify(expected)) {
+      throw new Error(`${name}: expected ${JSON.stringify(expected)}, got ${JSON.stringify(latest)}`);
+    }
+    passed.push(name);
+  };
+  const rows = (values) => {
+    text.replaceChildren(...values.map(value => {
+      const span = document.createElement('span');
+      span.className = 'caption-visual-line';
+      span.textContent = value;
+      return span;
+    }));
+  };
+  try {
+    rows(['expired 1', 'expired 2', 'expired 3', 'current 1', 'current 2']);
+    text.style.transform = 'translateY(-60px)';
+    captions = BP.adapters.list[0].captions(video, { player });
+    captions.onChange(lines => {
+      latest = lines;
+      mirror.textContent = lines.join('\n') || '(no active caption)';
+    });
+    expect('clipped scrollback is excluded', ['current 1', 'current 2']);
+
+    text.style.transform = 'translateY(-100px)';
+    await settle();
+    expect('scrolling the final lines out clears the mirror without a text mutation', []);
+
+    rows(['expired\ncurrent']);
+    text.firstChild.style.whiteSpace = 'pre';
+    text.style.transform = 'translateY(-20px)';
+    win.style.height = '20px';
+    await settle();
+    expect('clipping within a single wrapped visual line excludes its old row', ['current']);
+
+    win.style.display = 'none';
+    await settle();
+    expect('display-only expiry clears the mirror', []);
+
+    win.style.display = '';
+    text.style.transform = '';
+    rows(['after seek']);
+    video.dispatchEvent(new Event('seeked'));
+    expect('seek refresh reads the current viewport', ['after seek']);
+
+    captions.destroy();
+    rows(['after teardown']);
+    await settle();
+    expect('teardown stops observation', ['after seek']);
+    results.textContent = passed.map(name => `PASS ${name}`).join('\n');
+    document.title = 'PASS — YouTube caption clipping regression';
+    return { passed };
+  } catch (error) {
+    results.textContent = error.stack;
+    document.title = 'FAIL — YouTube caption clipping regression';
+    return { passed, error: error.message };
+  } finally {
+    captions?.destroy();
+  }
+})();
+</script>

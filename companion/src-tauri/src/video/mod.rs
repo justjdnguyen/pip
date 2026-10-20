@@ -8,6 +8,10 @@
 
 pub mod annexb;
 pub mod core;
+#[cfg(any(windows, target_os = "macos", test))]
+mod snapping;
+#[cfg(any(target_os = "macos", test))]
+pub mod mac_window;
 #[cfg(target_os = "macos")]
 pub mod macos;
 #[cfg(windows)]
