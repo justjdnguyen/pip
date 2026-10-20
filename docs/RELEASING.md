@@ -13,22 +13,45 @@ cargo about generate --locked --fail --manifest-path companion/src-tauri/Cargo.t
 ```
 
 Then run `node tools/package-release.mjs windows-x64 <version>` on Windows, or
-`macos-arm64` / `macos-x64` on the matching Mac runner. The package script requires
+`macos-arm64` / `macos-x64` on the Mac device. The package script requires
 the license notices and embeds them beside the binary. It copies only an explicit
 allowlist of extension files and companion installer files; no repository history,
 test captures, or build directories go in an extension archive.
 
-## GitHub automation
+## On-device checks and builds
 
-The release workflow builds Windows x64, Apple silicon, and Intel Mac companions,
-the extension ZIP, dependency notices, and SHA-256 checksums. Tag pushes matching
-`v*` create a **draft prerelease**; inspect all assets and CI results before publishing.
-The workflow can also be dispatched for an existing tag. Tag version and manifest/
-Cargo base versions must agree (for example, `v0.1.0-preview.1` uses base `0.1.0`).
+Checks and release builds run on the Windows PC and `t3-mac`. GitHub Actions
+workflows are disabled and removed; do not use hosted runners for this project.
+Install gitleaks 8.30.1 and cargo-about 0.8.4 from their official releases/crates.
+Set `BP_GITLEAKS_BIN` if gitleaks is not on PATH.
+
+Run `node tools/check-local.mjs` on each device. It checks JavaScript and release
+consistency, scans Git history for secrets, runs Rust tests/all-target checks,
+and tests the installer in isolation on Windows. An optional Rust target argument
+runs the Rust checks for that target (the device must be able to execute it).
+Also run the caption layout fixture in a browser and test actual PiP playback.
+
+```sh
+# Windows PC
+node tools/build-release-local.mjs windows-x64 0.1.0-preview.4
+node tools/build-release-local.mjs extension 0.1.0-preview.4
+
+# t3-mac; install both Rust targets first
+rustup target add aarch64-apple-darwin x86_64-apple-darwin
+node tools/build-release-local.mjs macos-arm64 0.1.0-preview.4
+node tools/build-release-local.mjs macos-x64 0.1.0-preview.4
+```
+
+The build helper generates fresh dependency notices, packages the specified
+architecture, and writes SHA-256 sidecars in `dist/`. Collect the four archives
+from the same commit and combine their sidecars into `SHA256SUMS.txt`. Verify
+the checksums, then upload all four archives and the checksum file to a draft
+GitHub prerelease. Tag version and manifest/Cargo base versions must agree
+(for example, `v0.1.0-preview.4` uses base `0.1.0`). GitHub only hosts the artifacts.
 
 Before publishing, test installation/uninstallation, playback, speed controls,
 fullscreen, and native failure recovery on actual Windows and Mac machines.
-CI compilation is not an end-to-end Mac playback test.
+Compilation is not an end-to-end Mac playback test.
 
 Unsigned preview distribution is intentional and must be stated in release notes.
 Trusted Windows signing and Apple Developer ID signing/notarization require publisher

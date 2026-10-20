@@ -6,6 +6,9 @@ companion or browser-only PiP was used. Redact personal information from logs an
 
 ## Build from source
 
+Checks and builds run on the Windows PC or `t3-mac`, not GitHub Actions. See
+`docs/RELEASING.md` for the local check suite and release build helpers.
+
 Install Node.js and stable Rust. Windows also needs Visual Studio C++ build tools,
 the Windows SDK, and WebView2 Runtime. macOS needs Xcode command-line tools.
 

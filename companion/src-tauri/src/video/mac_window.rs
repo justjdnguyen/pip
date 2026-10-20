@@ -137,8 +137,8 @@ mod platform {
         let screens: Retained<NSArray<AnyObject>> = msg_send![class!(NSScreen), screens];
         let mut monitors = Vec::new();
         for screen in screens.iter() {
-            monitors.push(rect(msg_send![screen, frame]));
-            monitors.push(rect(msg_send![screen, visibleFrame]));
+            monitors.push(rect(msg_send![&*screen, frame]));
+            monitors.push(rect(msg_send![&*screen, visibleFrame]));
         }
         let windows = window.app_handle().webview_windows().values().filter_map(|other| {
             if other.label() == window.label() || crate::is_fullscreen(other) { return None; }

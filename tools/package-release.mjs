@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const [platform, version = '0.1.0-preview.1'] = process.argv.slice(2);
+const [platform, version = '0.1.0-preview.1', binaryPath] = process.argv.slice(2);
 if (!['extension', 'windows-x64', 'macos-arm64', 'macos-x64'].includes(platform)) throw Error('Unknown package platform');
 if (!/^\d+\.\d+\.\d+(?:-[a-zA-Z0-9.-]+)?$/.test(version)) throw Error('Invalid release version');
 const base = JSON.parse(readFileSync(join(root, 'manifest.json'))).version;
@@ -25,7 +25,20 @@ if (platform === 'extension') {
   copy('manifest.json'); copy('src'); copy('assets'); copy('LICENSE');
 } else {
   const exe = platform === 'windows-x64' ? 'better-pip-host.exe' : 'better-pip-host';
-  copy(`companion/src-tauri/target/release/${exe}`, exe);
+  const binary = binaryPath ? resolve(binaryPath) : join(root, `companion/src-tauri/target/release/${exe}`);
+  const bytes = readFileSync(binary);
+  // Check the executable itself, so an ARM Mac cannot accidentally ship its
+  // native build in the Intel archive (or vice versa).
+  if (platform === 'windows-x64') {
+    const pe = bytes.length >= 64 && bytes.subarray(0, 2).toString() === 'MZ' ? bytes.readUInt32LE(0x3c) : -1;
+    if (pe < 0 || pe + 6 > bytes.length || bytes.readUInt32LE(pe) !== 0x4550 || bytes.readUInt16LE(pe + 4) !== 0x8664) {
+      throw Error('Expected a Windows x64 executable');
+    }
+  } else if (bytes.length < 8 || bytes.readUInt32LE(0) !== 0xfeedfacf
+      || bytes.readUInt32LE(4) !== (platform === 'macos-arm64' ? 0x100000c : 0x1000007)) {
+    throw Error(`Executable architecture does not match ${platform}`);
+  }
+  cpSync(binary, join(stage, exe));
   const notices = 'dist/THIRD-PARTY-LICENSES.html';
   if (!existsSync(join(root, notices))) throw Error('Generate third-party license notices first (docs/RELEASING.md)');
   copy(notices, 'THIRD-PARTY-LICENSES.html'); copy('LICENSE'); copy('docs/INSTALL.md', 'INSTALL.md'); copy('PRIVACY.md');
